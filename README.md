@@ -6,9 +6,10 @@
 [![Paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](<PAPER_URL>)
 [![Data](https://img.shields.io/badge/Globus-data-2d6db5.svg)](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
 
-**The BoSS** is a database of stellarator configurations paired with physics
-simulations: ideal-MHD equilibria and the collisionless guiding-center orbits of
-fusion-born alpha particles. This package accompanies the BoSS benchmark paper.
+The **Benchmark of Stellarator Simulations (the BoSS)** is a database of stellarator
+configurations paired with physics simulations: ideal-MHD equilibria and the
+collisionless guiding-center orbits of fusion-born alpha particles. This package
+accompanies the BoSS benchmark paper.
 
 `boss-bench` loads the data and computes the benchmark metrics exactly as they are
 defined in the paper.
@@ -66,7 +67,7 @@ data = bb.load(files, ["nfp", "aspect_ratio"])          # fields stacked over fi
 
 ## Particle losses and heat flux
 
-A particle is lost if `confinement_time < t_max - 1e-14`. Each quantity is computed over
+A particle is lost if `confinement_time < t_max`. Each quantity is computed over
 the particles born on one surface `s0`:
 
 ```python
@@ -81,27 +82,20 @@ q = bb.binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32) 
 
 ## Benchmarks
 
-Each benchmark takes your predictions and returns the paper's metrics. Predictions may
-use any field of a configuration except the outcomes of the particle tracing
-(`confinement_time`, `s_end`, `theta_end`, `zeta_end`, `vpar_end`). The benchmarks score
-every test sample; the metrics report how many samples were scored.
+Each benchmark takes your predictions and returns the paper's metrics.
 
-**Surrogate models.** Predict a per-configuration quantity on the test split, such as
-`bb.loss_fraction` or `bb.normalized_energy_loss` at `s0 = 0.1`.
+**Surrogate models.** A prediction is a per-configuration quantity on the test split,
+compared with its true value, such as `bb.loss_fraction` or `bb.normalized_energy_loss`
+at `s0 = 0.1`.
 
-**Heat flux.** For each test configuration and birth surface `s0`, predict the loss
-fraction and the strike points of the lost particles on the plasma boundary: their Boozer
-angles `zeta`, `theta` and energies.
+**Heat flux.** A prediction for each test configuration and birth surface `s0` is a
+tuple `(zeta, theta, energy, loss_fraction)`: the Boozer angles and energies of the
+predicted strike points of the lost particles on the plasma boundary (arrays of any
+length), and the predicted loss fraction. With `predictions` a dict from
+`(uuid, s0)` to these tuples,
 
 ```python
 paths = bb.list_files("BoSS", "confinement", "test")
-predictions = {}
-for path in paths:
-    with h5py.File(path, "r") as f:
-        for i in range(len(f["uuid"])):
-            record = bb.load_record(f, i, ["uuid", "boundary_xyz", "iota", "nfp"])  # what your model needs
-            for s0 in (0.1, 0.25, 0.5):
-                predictions[record["uuid"], s0] = my_model(record, s0)  # (zeta, theta, energy, loss_fraction)
 bb.heat_flux_metrics(paths, predictions)
 ```
 
@@ -109,13 +103,14 @@ The per-sample metrics are also available on their own, with their formulas in t
 documentation: `bb.heat_flux_error(prediction, record, s0)` and
 `bb.energy_distance(prediction, record, s0)`.
 
-**Trajectories.** For each orbit in the test files, predict from its first sample the
-state at lead times `10`, `100` and `999` us, and the loss time (`NaN` if not lost). States
-are in the embedded form of `bb.embed_state`; `bb.read_trajectories` reads the orbits.
+**Trajectories.** A prediction for each test configuration is a tuple `(z, t_loss)`
+covering all its orbits: `z` holds the predicted states at lead times `10`, `100` and
+`999` us, of shape `(n_orbits, 3, 5)`, in the embedded form of `bb.embed_state`, and
+`t_loss` the predicted loss times, of shape `(n_orbits,)` (`NaN` if not lost). With
+`predictions` a dict from `uuid` to these tuples,
 
 ```python
 paths = bb.list_files("BoSS", "trajectory", "test")
-predictions = {}  # uuid -> (z of shape (n_orbits, 3, 5), t_loss of shape (n_orbits,))
 bb.trajectory_metrics(paths, predictions)
 ```
 
