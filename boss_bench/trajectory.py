@@ -41,13 +41,14 @@ def embed_state(s, theta, phi, vpar):
     with :math:`v_\alpha` the speed of a 3.5 MeV alpha particle.
 
     Args:
-        s (np.ndarray): normalized toroidal flux, in [0, 1].
-        theta (np.ndarray): Boozer poloidal angle [rad], the shape of s.
-        phi (np.ndarray): Boozer toroidal angle [rad], the shape of s.
-        vpar (np.ndarray): parallel velocity [m/s], the shape of s.
+        s (np.ndarray): normalized toroidal flux, in [0, 1], shape (n,).
+        theta (np.ndarray): Boozer poloidal angle [rad], shape (n,).
+        phi (np.ndarray): Boozer toroidal angle [rad], shape (n,).
+        vpar (np.ndarray): parallel velocity [m/s], shape (n,).
 
     Returns:
-        np.ndarray: the embedded states, shape s.shape + (5,).
+        np.ndarray: the embedded states, shape (n, 5). Inputs of any other shape also
+        work; the states then have one more axis, of length 5.
     """
     r = np.sqrt(s)
     return np.stack([r * np.cos(theta), r * np.sin(theta), np.cos(phi), np.sin(phi), vpar / V_ALPHA], axis=-1)
@@ -95,12 +96,13 @@ def to_xyz(record, s, theta, zeta):
     Args:
         record (dict): the configuration's fields, from ``data.load_record``; at least
             ``R_boozer``, ``Z_boozer``, ``nu_boozer``, ``s1d`` and ``nfp``.
-        s (array_like): normalized toroidal flux, in [0, 1].
-        theta (array_like): Boozer poloidal angle [rad], the shape of s.
-        zeta (array_like): Boozer toroidal angle [rad], the shape of s.
+        s (np.ndarray): normalized toroidal flux, in [0, 1], shape (n,).
+        theta (np.ndarray): Boozer poloidal angle [rad], shape (n,).
+        zeta (np.ndarray): Boozer toroidal angle [rad], shape (n,).
 
     Returns:
-        np.ndarray: the positions [m], shape s.shape + (3,).
+        np.ndarray: the positions [m], shape (n, 3). Inputs of any other shape also
+        work; the positions then have one more axis, of length 3.
 
     Raises:
         ValueError: if an input contains NaN or inf.
