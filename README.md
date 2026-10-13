@@ -6,9 +6,10 @@
 [![Paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](<PAPER_URL>)
 [![Data](https://img.shields.io/badge/Globus-data-2d6db5.svg)](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
 
-**The BoSS** is a database of stellarator configurations paired with physics
-simulations: ideal-MHD equilibria and the collisionless guiding-center orbits of
-fusion-born alpha particles. This package accompanies the BoSS benchmark paper.
+The **Benchmark of Stellarator Simulations (the BoSS)** is a database of stellarator
+configurations paired with physics simulations: ideal-MHD equilibria and the
+collisionless guiding-center orbits of fusion-born alpha particles. This package
+accompanies the BoSS benchmark paper.
 
 `boss-bench` loads the data and computes the benchmark metrics exactly as they are
 defined in the paper.
