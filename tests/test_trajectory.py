@@ -36,6 +36,43 @@ def test_read_trajectories(trajectory_file):
     assert np.isnan(z[1, 500:]).all() and np.isfinite(z[1, :500]).all()
 
 
+def test_load_trajectory(trajectory_file):
+    """One orbit is read as stored, by configuration index or uuid, with its off-grid loss sample.
+
+    Args:
+        trajectory_file: fixture, see conftest.py.
+    """
+    with h5py.File(trajectory_file, "r") as f:
+        by_index = bb.load_trajectory(f, 0, 1)
+        by_uuid = bb.load_trajectory(f, "config-0", 1)
+        with pytest.raises(IndexError):
+            bb.load_trajectory(f, 0, 3)
+        with pytest.raises(KeyError):
+            bb.load_trajectory(f, "no-such-uuid", 0)
+    for name in ("t", "s", "theta", "zeta", "vpar"):
+        np.testing.assert_array_equal(by_index[name], by_uuid[name])
+    assert len(by_index["t"]) == 501
+    assert by_index["t"][-1] == 500.4e-6 and by_index["s"][-1] == 0.98
+    np.testing.assert_allclose(by_index["t"][:3], [1e-6, 2e-6, 3e-6])
+
+
+def test_to_xyz():
+    """Boozer points of the circular torus map to their exact Cartesian positions, and nu
+    shifts the toroidal angle.
+    """
+    from conftest import A, R0, torus_fields
+
+    record = torus_fields()
+    rng = np.random.default_rng(0)
+    s, theta, zeta = rng.uniform(0.01, 1, 50), rng.uniform(-np.pi, np.pi, 50), rng.uniform(-np.pi, np.pi, 50)
+    R = R0 + A * np.sqrt(s) * np.cos(theta)
+    expected = np.stack([R * np.cos(zeta), R * np.sin(zeta), A * np.sqrt(s) * np.sin(theta)], axis=1)
+    np.testing.assert_allclose(bb.to_xyz(record, s, theta, zeta), expected, atol=1e-9)
+    record["nu_boozer"] = np.full_like(record["nu_boozer"], 0.3)
+    shifted = bb.to_xyz(record, s, theta, zeta + 0.3)
+    np.testing.assert_allclose(shifted, expected, atol=1e-9)
+
+
 def test_true_predictions(trajectory_file):
     """The true states and loss times score zero on every metric. The lost orbit's true
     state at 999 us does not exist, so any prediction there is not scored, and the orbit

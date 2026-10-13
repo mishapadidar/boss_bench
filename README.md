@@ -63,6 +63,11 @@ with h5py.File(files[0], "r") as f:
     record = bb.load_record(f, 0)                       # every field of configuration 0 (or give its uuid)
 
 data = bb.load(files, ["nfp", "aspect_ratio"])          # fields stacked over files
+
+with h5py.File(bb.list_files("BoSS", "trajectory", "test")[0], "r") as f:
+    orbit = bb.load_trajectory(f, 0, 5)                 # orbit 5 of configuration 0: t, s, theta, zeta, vpar
+    record = bb.load_record(f, 0)
+xyz = bb.to_xyz(record, orbit["s"], orbit["theta"], orbit["zeta"])   # its Cartesian positions [m]
 ```
 
 ## Particle losses and heat flux

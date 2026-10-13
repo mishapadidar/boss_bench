@@ -8,6 +8,7 @@ tau = k * DT after it, k = 1, ..., 999, and whether and when the particle is los
 
 import h5py
 import numpy as np
+from scipy.interpolate import CubicSpline
 
 from ._checks import require_finite
 from .confinement import LOSS_TOL
@@ -50,6 +51,101 @@ def embed_state(s, theta, phi, vpar):
     """
     r = np.sqrt(s)
     return np.stack([r * np.cos(theta), r * np.sin(theta), np.cos(phi), np.sin(phi), vpar / V_ALPHA], axis=-1)
+
+
+def load_trajectory(f, config, particle):
+    """Read one orbit of one stellarator configuration of a trajectory file, as stored.
+
+    Args:
+        f (h5py.File): an open trajectory file, e.g. ``h5py.File(path, "r")``.
+        config (int or str): the configuration, by its index in the file or its uuid.
+        particle (int): the orbit, by its index among the configuration's orbits.
+
+    Returns:
+        dict: the orbit's samples (np.ndarray, shape (n_samples,) each): "t", the time [s];
+        "s", the normalized toroidal flux; "theta" and "zeta", the Boozer poloidal and
+        toroidal angles [rad]; and "vpar", the parallel velocity [m/s]. Samples are every
+        DT = 1 us from t = 1 us; a lost orbit ends with one extra sample at its loss time.
+
+    Raises:
+        KeyError: if a uuid is given that is not in the file.
+        IndexError: if the configuration has no orbit with index particle.
+    """
+    i = _config_index(f, config)
+    c0, c1 = f["config_offsets"][i], f["config_offsets"][i + 1]
+    if not 0 <= particle < c1 - c0:
+        raise IndexError(f"configuration {config} has {c1 - c0} orbits; there is no orbit {particle}")
+    a, b = f["traj_offsets"][c0 + particle], f["traj_offsets"][c0 + particle + 1]
+    t, s, theta, zeta, vpar = f["traj_data"][a:b].T
+    return {"t": t, "s": s, "theta": theta, "zeta": zeta, "vpar": vpar}
+
+
+def to_xyz(record, s, theta, zeta):
+    r"""Cartesian positions of points given in Boozer coordinates, e.g. the samples of an orbit.
+
+    The cylindrical coordinates :math:`R`, :math:`Z` and the angle difference :math:`\nu`
+    are interpolated from the configuration's Boozer grid: spectrally in the two angles,
+    in which the grid is periodic, and with a cubic spline in :math:`\sqrt{s}` across the
+    flux surfaces. With the cylindrical toroidal angle :math:`\phi = \zeta - \nu`,
+
+    .. math::
+
+        (x, y, z) = (R \cos\phi,\ R \sin\phi,\ Z).
+
+    Args:
+        record (dict): the configuration's fields, from ``data.load_record``; at least
+            ``R_boozer``, ``Z_boozer``, ``nu_boozer``, ``s1d`` and ``nfp``.
+        s (array_like): normalized toroidal flux, in [0, 1].
+        theta (array_like): Boozer poloidal angle [rad], the shape of s.
+        zeta (array_like): Boozer toroidal angle [rad], the shape of s.
+
+    Returns:
+        np.ndarray: the positions [m], shape s.shape + (3,).
+
+    Raises:
+        ValueError: if an input contains NaN or inf.
+    """
+    require_finite(s=s, theta=theta, zeta=zeta)
+    s, theta, zeta = np.broadcast_arrays(*(np.asarray(a, dtype=float) for a in (s, theta, zeta)))
+    shape = s.shape
+    s, theta, zeta = s.ravel(), theta.ravel(), zeta.ravel()
+    s1d, nfp = np.asarray(record["s1d"], dtype=float), int(record["nfp"])
+    # the cubic spline through the flux surfaces is linear in their values: weights per point
+    weights = CubicSpline(np.sqrt(s1d), np.eye(len(s1d)))(np.sqrt(np.clip(s, 0, None)))
+    R, Z, nu = (_interpolate_boozer(record[name], len(s1d), nfp, weights, theta, zeta)
+                for name in ("R_boozer", "Z_boozer", "nu_boozer"))
+    phi = zeta - nu
+    return np.stack([R * np.cos(phi), R * np.sin(phi), Z], axis=-1).reshape(shape + (3,))
+
+
+def _interpolate_boozer(values, n_s, nfp, weights, theta, zeta, block=4096):
+    """Interpolate a field on the Boozer grid at points, spectrally in the angles.
+
+    Args:
+        values (array_like): the field, flattened over (s, zeta, theta), on uniform angle grids
+            that start at 0 and span one field period in zeta and 2 pi in theta.
+        n_s (int): number of flux surfaces of the grid.
+        nfp (int): number of field periods.
+        weights (np.ndarray): radial interpolation weights of each point on each surface,
+            shape (n, n_s).
+        theta, zeta (np.ndarray): Boozer angles of the points [rad], shape (n,).
+        block (int): points evaluated at once.
+
+    Returns:
+        np.ndarray: the field at the points, shape (n,).
+    """
+    n = int(round(np.sqrt(np.size(values) / n_s)))  # the zeta and theta grids have n points each
+    grid = np.asarray(values, dtype=float).reshape(n_s, n, n)
+    coef = np.fft.fft2(grid, axes=(1, 2)) / (grid.shape[1] * grid.shape[2])
+    k_zeta = np.fft.fftfreq(grid.shape[1], 1 / grid.shape[1]) * nfp
+    k_theta = np.fft.fftfreq(grid.shape[2], 1 / grid.shape[2])
+    out = np.empty(len(theta))
+    for a in range(0, len(theta), block):
+        b = slice(a, a + block)
+        c = (weights[b] @ coef.reshape(n_s, -1)).reshape(-1, n, n)  # coefficients at each point's s
+        c = (c * np.exp(1j * np.outer(zeta[b], k_zeta))[:, :, None]).sum(axis=1)
+        out[b] = (c * np.exp(1j * np.outer(theta[b], k_theta))).sum(axis=1).real
+    return out
 
 
 def read_trajectories(f, config):
