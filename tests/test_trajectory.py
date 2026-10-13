@@ -47,8 +47,8 @@ def test_true_predictions(trajectory_file):
     truth = read_truth(trajectory_file)
     z = np.nan_to_num(truth["z"][:, trajectory.TABLE_STEPS], nan=0.5)
     m = bb.trajectory_metrics([trajectory_file], {"config-0": (z, truth["t_loss"])})
-    assert m["nrmse_tau10us"] == m["nrmse_tau100us"] == m["nrmse_tau999us"] == 0
-    assert m["loss_fraction_mae"] == 0 and m["w1_us"] == 0
+    assert m["nrmse_10_microsec"] == m["nrmse_100_microsec"] == m["nrmse_999_microsec"] == 0
+    assert m["loss_fraction_mae"] == 0 and m["confinement_time_w1_microsec"] == 0
     assert m["n_configurations"] == 1
 
 
@@ -64,8 +64,8 @@ def test_no_motion(trajectory_file):
     t_loss = np.full(3, np.nan)
     m = bb.trajectory_metrics([trajectory_file], {"config-0": (z, t_loss)})
     assert m["loss_fraction_mae"] == 0.5
-    np.testing.assert_allclose(m["w1_us"], (1000 - 500.4) / 2)
-    assert m["nrmse_tau10us"] > 0
+    np.testing.assert_allclose(m["confinement_time_w1_microsec"], (1000 - 500.4) / 2)
+    assert m["nrmse_10_microsec"] > 0
 
 
 def test_loss_at_the_last_sample_counts():

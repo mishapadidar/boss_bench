@@ -6,7 +6,8 @@ sample of the test files.
 
     python heat_flux_benchmark.py DATA_DIR
 
-DATA_DIR is the folder the BoSS data was downloaded to.
+DATA_DIR is a directory containing at least one BoSS confinement data file from the test split,
+e.g. confinement_data_test_split_00000.hdf5. It is searched recursively.
 """
 
 import sys
@@ -18,6 +19,8 @@ import boss_bench as bb
 
 data_dir = sys.argv[1] if len(sys.argv) > 1 else "BoSS"
 paths = bb.list_files(data_dir, "confinement", "test")[:1]
+if not paths:
+    sys.exit(f"No confinement test files found in {data_dir}. Download the BoSS data first.")
 n_configurations = 10
 rng = np.random.default_rng(0)
 

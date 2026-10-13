@@ -4,7 +4,8 @@ Compares the true heat flux with a made-up prediction.
 
     python explore_configuration.py DATA_DIR
 
-DATA_DIR is the folder the BoSS data was downloaded to.
+DATA_DIR is a directory containing at least one BoSS confinement data file from the test split,
+e.g. confinement_data_test_split_00000.hdf5. It is searched recursively.
 """
 
 import sys
@@ -16,7 +17,10 @@ import numpy as np
 import boss_bench as bb
 
 data_dir = sys.argv[1] if len(sys.argv) > 1 else "BoSS"
-path = bb.list_files(data_dir, "confinement", "test")[0]
+paths = bb.list_files(data_dir, "confinement", "test")
+if not paths:
+    sys.exit(f"No confinement test files found in {data_dir}. Download the BoSS data first.")
+path = paths[0]
 with h5py.File(path, "r") as f:
     record = bb.load_record(f, 0)
 nfp = int(record["nfp"])

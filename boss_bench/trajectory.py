@@ -113,8 +113,9 @@ def trajectory_metrics(paths, predictions):
             (n_orbits,). Rows of orbits lost before their first sample are ignored.
 
     Returns:
-        dict: "nrmse_tau10us", "nrmse_tau100us", "nrmse_tau999us", "loss_fraction_mae",
-        "w1_us" (float), and "n_configurations" (int).
+        dict: "nrmse_10_microsec", "nrmse_100_microsec", "nrmse_999_microsec" (the nRMSE at
+        each lead time), "loss_fraction_mae", "confinement_time_w1_microsec" (float), and
+        "n_configurations" (int).
 
     Raises:
         KeyError: if a predicted configuration is not in the files.
@@ -137,9 +138,9 @@ def trajectory_metrics(paths, predictions):
     missing = set(predictions) - in_files
     if missing:
         raise KeyError(f"{len(missing)} predicted configurations are not in the files, e.g. {next(iter(missing))}")
-    out = {f"nrmse_tau{k}us": float(v) for k, v in zip(TABLE_STEPS, nrmse(z_pred, z_true))}
+    out = {f"nrmse_{k}_microsec": float(v) for k, v in zip(TABLE_STEPS, nrmse(z_pred, z_true))}
     out["loss_fraction_mae"] = loss_fraction_mae(t_pred, t_true)
-    out["w1_us"] = confinement_time_w1(t_pred, t_true)
+    out["confinement_time_w1_microsec"] = confinement_time_w1(t_pred, t_true)
     out["n_configurations"] = len(z_pred)
     return out
 

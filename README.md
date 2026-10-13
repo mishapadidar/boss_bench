@@ -146,14 +146,18 @@ bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per
 ## Examples
 
 The `examples/` folder has three short scripts. Download the data first, then run each
-as `python <script> DATA_DIR`, where `DATA_DIR` is the folder holding the downloaded files:
+as `python <script> DATA_DIR`, where `DATA_DIR` is a directory containing the downloaded
+files (it is searched recursively):
 
 - `explore_configuration.py` loads a configuration and plots its shape, `|B|`, loss
-  fraction curves, and true against predicted strike points and heat flux.
+  fraction curves, and true against predicted strike points and heat flux. `DATA_DIR`
+  must contain at least one confinement data file from the test split.
 - `heat_flux_benchmark.py` scores made-up heat-flux predictions on a small batch of test
-  configurations.
+  configurations. `DATA_DIR` must contain at least one confinement data file from the
+  test split.
 - `trajectory_rollouts.py` loads the orbits of one configuration, plots made-up
-  predictions against them and scores them.
+  predictions against them and scores them. `DATA_DIR` must contain at least one
+  trajectory data file from the test split.
 
 ## Tests
 

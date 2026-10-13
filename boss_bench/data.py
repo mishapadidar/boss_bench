@@ -19,7 +19,7 @@ def list_files(data_dir, kind="confinement", split="test"):
     """List the data files of one kind and split.
 
     Args:
-        data_dir (str): the directory the data was downloaded to; it is searched recursively.
+        data_dir (str): a directory containing the downloaded data files; it is searched recursively.
         kind (str): "confinement" or "trajectory".
         split (str): "train" or "test".
 
