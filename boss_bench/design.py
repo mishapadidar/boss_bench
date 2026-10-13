@@ -27,6 +27,10 @@ def design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, asp
 
         \text{aspect error} = 100\, \operatorname{median}_j \frac{|A_j - A^*_j|}{A^*_j}.
 
+    They are returned as "low_loss_rate_10" and "low_loss_rate_15" (c = 0.10 and 0.15),
+    "mirror_constraint" and "mirror_constraint_1.1" (k = 1 and 1.1), and
+    "aspect_error_median".
+
     Args:
         loss_fraction (array_like): traced loss fraction of the particles born on s = 0.1,
             one value per design, shape (n,).
@@ -36,10 +40,8 @@ def design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, asp
         aspect_target (array_like): target aspect ratio, one value per design, shape (n,).
 
     Returns:
-        dict: percentages, holding the share of designs with loss fraction <= 10% and <= 15%
-        ("low_loss_rate_10", "low_loss_rate_15"), with mirror ratio <= target and
-        <= 1.1 * target ("mirror_constraint", "mirror_constraint_1.1"), and the median
-        relative aspect-ratio error ("aspect_error_median").
+        dict: **"low_loss_rate_10", "low_loss_rate_15", "mirror_constraint",
+        "mirror_constraint_1.1", "aspect_error_median"**, the scores above, in percent.
 
     Raises:
         ValueError: if an input contains NaN or inf.

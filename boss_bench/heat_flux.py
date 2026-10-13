@@ -28,6 +28,11 @@ BOOZER_FIELDS = {"R": "R_boozer", "Z": "Z_boozer", "nu": "nu_boozer"}  # boundar
 def lost_particles(record, s0):
     """The true strike points and energies of the lost particles born on one surface.
 
+    For the k particles born on s0 that are lost, ``zeta`` and ``theta`` are the Boozer
+    angles where they strike the boundary, in [0, 2 pi) [rad], and ``energy`` their
+    energies [MeV], each of shape (k,). ``n_launched`` is the number of particles born
+    on s0.
+
     Args:
         record (dict): the configuration's fields, from ``data.load_record`` on a
             confinement file; at least ``confinement_time``, ``t_max``, ``s_init``,
@@ -35,9 +40,8 @@ def lost_particles(record, s0):
         s0 (float): the birth surface.
 
     Returns:
-        tuple: (zeta, theta, energy, n_launched). zeta and theta (np.ndarray) are the
-        Boozer angles of the strike points in [0, 2 pi) [rad], energy (np.ndarray) their
-        energies [MeV], and n_launched (int) the number of particles born on s0.
+        tuple: **zeta, theta, energy, n_launched**, the strike points, their energies, and
+        the number of particles launched.
 
     Raises:
         ValueError: if the confinement times or the lost particles' strike points contain NaN or inf.
@@ -65,6 +69,8 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
 
     where :math:`N` is the number of particles launched. :math:`Q` is in MeV / m^2 per
     launched particle; multiply by a birth rate [1/s] and 1.602e-13 J/MeV for W/m^2.
+    It is indexed (zeta bin, theta bin), with zeta over [0, 2 pi / nfp) and theta over
+    [0, 2 pi).
 
     Args:
         zeta (np.ndarray): Boozer toroidal angles of the strike points [rad], shape (k,).
@@ -76,9 +82,7 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
         resolution (int): number of bins per angle.
 
     Returns:
-        np.ndarray: the heat flux [MeV / m^2 per launched particle], shape
-        (resolution, resolution), indexed (zeta bin, theta bin), with zeta over
-        [0, 2 pi / nfp) and theta over [0, 2 pi).
+        np.ndarray: **Q**, the heat flux, shape (resolution, resolution).
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -111,9 +115,9 @@ def heat_flux_metrics(paths, predictions):
             predicted loss fraction (float).
 
     Returns:
-        dict: "ED_median", "HF_16_median", "HF_16_mean", "HF_32_median", "HF_32_mean",
-        "loss_fraction_median_abs_error", "loss_fraction_mean_abs_error" (float), and
-        "n_samples" (int).
+        dict: **"ED_median", "HF_16_median", "HF_16_mean", "HF_32_median", "HF_32_mean",
+        "loss_fraction_median_abs_error", "loss_fraction_mean_abs_error", "n_samples"**,
+        the statistics above and the number of samples scored.
 
     Raises:
         KeyError: if a predicted sample is not in the files.

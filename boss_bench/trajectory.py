@@ -57,16 +57,18 @@ def embed_state(s, theta, phi, vpar):
 def load_trajectory(f, config, particle):
     """Read one orbit of one stellarator configuration of a trajectory file, as stored.
 
+    The orbit's samples are arrays of shape (n_samples,): the time ``t`` [s], the
+    normalized toroidal flux ``s``, the Boozer poloidal and toroidal angles ``theta`` and
+    ``zeta`` [rad], and the parallel velocity ``vpar`` [m/s]. Samples are every DT = 1 us from t = 1 us; a lost orbit
+    ends with one extra sample at its loss time.
+
     Args:
         f (h5py.File): an open trajectory file, e.g. ``h5py.File(path, "r")``.
         config (int or str): the configuration, by its index in the file or its uuid.
         particle (int): the orbit, by its index among the configuration's orbits.
 
     Returns:
-        dict: the orbit's samples (np.ndarray, shape (n_samples,) each): "t", the time [s];
-        "s", the normalized toroidal flux; "theta" and "zeta", the Boozer poloidal and
-        toroidal angles [rad]; and "vpar", the parallel velocity [m/s]. Samples are every
-        DT = 1 us from t = 1 us; a lost orbit ends with one extra sample at its loss time.
+        dict: **"t", "s", "theta", "zeta", "vpar"**, the orbit's samples.
 
     Raises:
         KeyError: if a uuid is given that is not in the file.
@@ -153,17 +155,21 @@ def _interpolate_boozer(values, n_s, nfp, weights, theta, zeta, block=4096):
 def read_trajectories(f, config):
     """Read the true orbits of one stellarator configuration of a trajectory file.
 
+    ``z`` holds the embedded states of the orbits (see ``embed_state``), shape
+    (n_orbits, 1000, 5): row k is the sample k * DT after the first. A lost orbit's rows
+    after its last regular sample are NaN; its final sample, at its loss time, falls
+    between rows and is not in ``z``. ``n_valid`` is the number of filled rows of each
+    orbit, shape (n_orbits,); orbits with ``n_valid = 0`` were lost before their first
+    sample. ``t_loss`` is the loss time of each orbit [s], NaN if confined, shape
+    (n_orbits,).
+
     Args:
         f (h5py.File): an open trajectory file, e.g. ``h5py.File(path, "r")``.
         config (int or str): the configuration, by its index in the file or its uuid.
 
     Returns:
-        dict: "z" (np.ndarray), the embedded states (see ``embed_state``) on the 1 us
-        grid, shape (n_orbits, 1000, 5), where row k is lead time k * DT after the first
-        sample and rows after the last on-grid sample are NaN; "n_valid" (np.ndarray), the
-        number of on-grid samples of each orbit, shape (n_orbits,); and "t_loss"
-        (np.ndarray), the loss time of each orbit [s], NaN if confined, shape (n_orbits,).
-        Orbits with n_valid = 0 were lost before their first sample.
+        dict: **"z", "n_valid", "t_loss"**, the embedded orbits, the number of filled rows
+        of each, and their loss times.
 
     Raises:
         KeyError: if a uuid is given that is not in the file.
@@ -211,9 +217,9 @@ def trajectory_metrics(paths, predictions):
             (n_orbits,). Rows of orbits lost before their first sample are ignored.
 
     Returns:
-        dict: "nrmse_10_microsec", "nrmse_100_microsec", "nrmse_999_microsec" (the nRMSE at
-        each lead time), "loss_fraction_mae", "confinement_time_w1_microsec" (float), and
-        "n_configurations" (int).
+        dict: **"nrmse_10_microsec", "nrmse_100_microsec", "nrmse_999_microsec",
+        "loss_fraction_mae", "confinement_time_w1_microsec", "n_configurations"**, the
+        metrics above and the number of configurations scored.
 
     Raises:
         KeyError: if a predicted configuration is not in the files.
