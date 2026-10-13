@@ -5,8 +5,8 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 ## Data
 
 - [ ] Upload all release files to Globus: confinement and trajectory, train and test.
-- [ ] Check the field names of the release trajectory files. `read_device` and
-      `evaluate_trajectories` read `traj_data`, `traj_offsets` and `config_offsets`.
+- [ ] Check the field names of the release trajectory files. `read_trajectories` and
+      `trajectory_metrics` read `uuid`, `traj_data`, `traj_offsets` and `config_offsets`.
 - [ ] Rerun `verification/check_against_benchmark.py` on a release trajectory file. So far
       trajectories are checked only on an old-format local file.
 - [ ] Rerun the verification on more of the release confinement data. So far it covers the
@@ -22,8 +22,9 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
       the tracing outcomes (`confinement_time`, `s_end`, `theta_end`, `zeta_end`,
       `vpar_end`). Are the initial particle states (`*_init`) allowed? Does the paper
       restrict the inputs further?
-- [ ] Trajectories: the allowed model inputs. Models receive `z0` and the configuration's
-      fields from the trajectory file.
+- [ ] Trajectories: the allowed model inputs, and that predictions follow the paper's
+      conventions (loss at the first predicted s >= 0.98, state held at the loss state
+      afterwards). The package now takes predictions, so it cannot enforce these.
 - [ ] Trajectories: the package scores every orbit of the test files, while the paper's
       table used 500 particles per configuration. Regenerate the table or update its caption.
 - [ ] Trajectories: a predicted crossing at the last sample (`t = 1 ms`) counts as a loss,
@@ -45,5 +46,6 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 - [ ] Make the tutorials consistent with the package: loss fraction per birth surface,
       heat flux per birth surface.
 - [ ] Update the package Overview page (`docs/package.md`) to the new heat-flux API
-      (`evaluate_heat_flux`); its formulas now also live in the docstrings.
+      (`heat_flux_metrics`, `binned_heat_flux`, `lost_particles`) and the trajectory API
+      (`trajectory_metrics` takes predictions); its formulas now also live in the docstrings.
 - [ ] Deploy after the PyPI release; the workflow installs `boss-bench==1.0.0`.

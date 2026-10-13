@@ -5,7 +5,6 @@ import matplotlib
 import pytest
 
 import boss_bench as bb
-from boss_bench import heat_flux
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -33,13 +32,14 @@ def test_plots_draw(confinement_file, trajectory_file):
     with h5py.File(confinement_file, "r") as f:
         record = bb.load_record(f, 0)
     with h5py.File(trajectory_file, "r") as f:
-        z = bb.read_device(f, 0)["z"][:2]
-    targets = heat_flux.heat_flux_targets(record)
-    predictions = [(t["zeta"], t["theta"], t["energy"]) for t in targets]
+        z = bb.read_trajectories(f, 0)["z"][:2]
+    predictions = {s0: bb.lost_particles(record, s0)[:3] for s0 in (0.1, 0.25, 0.5)}
+    q = bb.binned_heat_flux(*bb.lost_particles(record, 0.1), record)
 
     assert bb.plot_device(record) is not None
     assert bb.plot_modB_boozer(record) is not None
     assert bb.plot_loss_fraction_curves(record) is not None
-    assert bb.plot_strike_points(targets, predictions) is not None
+    assert bb.plot_strike_points(record, predictions) is not None
+    assert bb.plot_heat_flux(q, int(record["nfp"])) is not None
     assert bb.plot_rollouts(z, z + 0.01) is not None
     plt.close("all")

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .confinement import S_INITS, is_lost
+from .heat_flux import lost_particles
 
 TRAJECTORY_CHANNELS = [  # (channel of z, title, toroidal)
     (0, r"$x = \sqrt{s}\,\cos\theta$", False),
@@ -18,11 +19,12 @@ def plot_device(record, ax=None):
     """Draw the plasma boundary over the full torus, colored by ``|B|``, viewed from above.
 
     Args:
-        record: the configuration's fields, from ``data.load_record``.
-        ax: a 3D matplotlib axis. If None, a new figure is made.
+        record (dict): the configuration's fields, from ``data.load_record``; at least
+            ``boundary_xyz``, ``modB``, ``phi1d``, ``theta1d`` and ``nfp``.
+        ax (matplotlib.axes.Axes, optional): a 3D axis to draw on. By default a new figure is made.
 
     Returns:
-        The axis.
+        matplotlib.axes.Axes: the axis.
     """
     n_phi, n_theta = len(record["phi1d"]), len(record["theta1d"])
     xyz = np.asarray(record["boundary_xyz"]).reshape(n_phi, n_theta, 3)
@@ -43,12 +45,13 @@ def plot_modB_boozer(record, s=0.5, ax=None):
     """Contours of ``|B|`` on a flux surface in Boozer coordinates, with field lines in black.
 
     Args:
-        record: the configuration's fields, from ``data.load_record``.
-        s: the flux surface; the nearest stored surface is used.
-        ax: a matplotlib axis. If None, a new figure is made.
+        record (dict): the configuration's fields, from ``data.load_record``; at least
+            ``modB_boozer``, ``iota``, ``s1d``, ``phi1d``, ``theta1d`` and ``nfp``.
+        s (float): the flux surface; the nearest stored surface is used.
+        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default a new figure is made.
 
     Returns:
-        The axis.
+        matplotlib.axes.Axes: the axis.
     """
     s1d, phi, theta = (np.asarray(record[k]) for k in ("s1d", "phi1d", "theta1d"))
     js = int(np.argmin(np.abs(s1d - s)))
@@ -71,11 +74,12 @@ def plot_loss_fraction_curves(record, ax=None):
     """Fraction of particles lost by time t, for each birth surface.
 
     Args:
-        record: the configuration's fields, from ``data.load_record`` on a confinement file.
-        ax: a matplotlib axis. If None, a new figure is made.
+        record (dict): the configuration's fields, from ``data.load_record`` on a
+            confinement file; at least ``confinement_time``, ``s_init`` and ``t_max``.
+        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default a new figure is made.
 
     Returns:
-        The axis.
+        matplotlib.axes.Axes: the axis.
     """
     ct, s_init, t_max = record["confinement_time"], record["s_init"], record["t_max"]
     t = np.logspace(-6, np.log10(t_max), 400)
@@ -95,27 +99,32 @@ def plot_loss_fraction_curves(record, ax=None):
     return ax
 
 
-def plot_strike_points(targets, predictions=None, bins=32):
+def plot_strike_points(record, predictions=None, bins=32):
     """Strike points of the lost particles on the boundary, as points colored by energy and as a density.
 
+    One row per birth surface; predictions, if given, are drawn next to the truth with the
+    same color scales.
+
     Args:
-        targets: true samples, from ``heat_flux.heat_flux_targets``; one row each.
-        predictions: optional list of (zeta, theta, energy), one per target, drawn
-            next to the truth with the same color scales.
-        bins: number of density bins per angle.
+        record (dict): the configuration's fields, from ``data.load_record`` on a
+            confinement file; at least those read by ``heat_flux.lost_particles``.
+        predictions (dict, optional): maps a birth surface s0 to a tuple (zeta, theta,
+            energy) of predicted strike points (np.ndarray each).
+        bins (int): number of density bins per angle.
 
     Returns:
-        The figure.
+        matplotlib.figure.Figure: the figure.
     """
     n_cols = 2 if predictions is None else 4
-    fig, axs = plt.subplots(len(targets), n_cols, figsize=(4 * n_cols, 3.6 * len(targets)), squeeze=False)
-    energies = np.concatenate([t["energy"] for t in targets])
+    fig, axs = plt.subplots(len(S_INITS), n_cols, figsize=(4 * n_cols, 3.6 * len(S_INITS)), squeeze=False)
+    truths = {s0: lost_particles(record, s0)[:3] for s0 in S_INITS}
+    energies = np.concatenate([energy for _, _, energy in truths.values()])
     e_min, e_max = (energies.min(), energies.max()) if len(energies) else (None, None)
     points = None
-    for i, target in enumerate(targets):
-        clouds = [("True", target["zeta"], target["theta"], target["energy"])]
+    for i, s0 in enumerate(S_INITS):
+        clouds = [("True", *truths[s0])]
         if predictions is not None:
-            clouds.append(("Predicted", *predictions[i]))
+            clouds.append(("Predicted", *predictions[s0]))
         density_max = None
         for j, (name, zeta, theta, energy) in enumerate(clouds):
             zeta, theta = np.mod(zeta, 2 * np.pi), np.mod(theta, 2 * np.pi)
@@ -135,11 +144,36 @@ def plot_strike_points(targets, predictions=None, bins=32):
             ax.set_aspect("equal")
             ax.set_xlabel(r"Boozer $\zeta$")
             ax.set_ylabel(r"Boozer $\theta$")
-        axs[i, 0].annotate(f"$s_0$ = {target['s_init']}", xy=(-0.35, 0.5), xycoords="axes fraction",
+        axs[i, 0].annotate(f"$s_0$ = {s0}", xy=(-0.35, 0.5), xycoords="axes fraction",
                            rotation=90, va="center", fontsize=12)
     fig.tight_layout()
     fig.colorbar(points, ax=axs, orientation="horizontal", fraction=0.03, pad=0.08, label="Energy [MeV]")
     return fig
+
+
+def plot_heat_flux(q, nfp, ax=None, vmax=None):
+    """The heat flux on the boundary over one field period, from ``heat_flux.binned_heat_flux``.
+
+    Args:
+        q (np.ndarray): the heat flux [MeV / m^2 per launched particle], shape (m, m),
+            indexed (zeta bin, theta bin).
+        nfp (int): number of field periods.
+        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default a new figure is made.
+        vmax (float, optional): the top of the color scale, e.g. to compare two heat fluxes.
+            By default the maximum of q.
+
+    Returns:
+        matplotlib.axes.Axes: the axis.
+    """
+    m_zeta, m_theta = q.shape
+    if ax is None:
+        ax = plt.figure(figsize=(6, 4)).add_subplot()
+    mesh = ax.pcolormesh(np.linspace(0, 2 * np.pi / nfp, m_zeta + 1), np.linspace(0, 2 * np.pi, m_theta + 1),
+                         q.T, cmap="inferno", vmin=0, vmax=vmax)
+    ax.set_xlabel(r"Boozer $\zeta$ (one field period)")
+    ax.set_ylabel(r"Boozer $\theta$")
+    ax.figure.colorbar(mesh, ax=ax, label="Heat flux [MeV / m$^2$ per particle]")
+    return ax
 
 
 def plot_rollouts(z_true, z_pred=None, window_us=350, toroidal_window_us=20):
@@ -149,14 +183,14 @@ def plot_rollouts(z_true, z_pred=None, window_us=350, toroidal_window_us=20):
     a shorter window, with markers.
 
     Args:
-        z_true: true embedded states, (n, T, 5), row k at lead time k us, as in
-            ``trajectory.read_device``; NaN after a loss.
-        z_pred: optional predicted states in the same layout.
-        window_us: lead times shown for the x, y and lambda channels [us].
-        toroidal_window_us: lead times shown for the toroidal channels [us].
+        z_true (np.ndarray): true embedded states, shape (n, T, 5), with row k at lead time
+            k us, as from ``trajectory.read_trajectories``; NaN after a loss.
+        z_pred (np.ndarray, optional): predicted states in the same layout.
+        window_us (float): lead times shown for the x, y and lambda channels [us].
+        toroidal_window_us (float): lead times shown for the toroidal channels [us].
 
     Returns:
-        The figure.
+        matplotlib.figure.Figure: the figure.
     """
     z_true = np.atleast_3d(z_true)
     tau = np.arange(z_true.shape[1])
@@ -189,12 +223,12 @@ def _full_torus(xyz, values, nfp):
     """Copy one field period around the torus, and close the grid in both angles.
 
     Args:
-        xyz: points over one field period, (n_phi, n_theta, 3).
-        values: a quantity at those points, (n_phi, n_theta).
-        nfp: number of field periods.
+        xyz (np.ndarray): points over one field period, shape (n_phi, n_theta, 3).
+        values (np.ndarray): a quantity at those points, shape (n_phi, n_theta).
+        nfp (int): number of field periods.
 
     Returns:
-        (xyz, values) over the full torus, of shapes (nfp * n_phi + 1, n_theta + 1, 3)
+        tuple: (xyz, values) over the full torus, of shapes (nfp * n_phi + 1, n_theta + 1, 3)
         and (nfp * n_phi + 1, n_theta + 1).
     """
     periods = []
@@ -211,11 +245,11 @@ def _density(zeta, theta, bins):
     """Normalized 2D histogram of points on [0, 2 pi)^2.
 
     Args:
-        zeta, theta: angles of the points [rad].
-        bins: number of bins per angle.
+        zeta, theta (np.ndarray): angles of the points [rad].
+        bins (int): number of bins per angle.
 
     Returns:
-        (bins, bins) array integrating to 1 (all zeros if there are no points).
+        np.ndarray: shape (bins, bins), integrating to 1 (all zeros if there are no points).
     """
     counts = np.histogram2d(zeta, theta, bins=bins, range=[[0, 2 * np.pi], [0, 2 * np.pi]])[0]
     if counts.sum() == 0:

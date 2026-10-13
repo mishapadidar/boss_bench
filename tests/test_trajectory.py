@@ -7,133 +7,82 @@ import pytest
 import boss_bench as bb
 from boss_bench import trajectory
 
-S_RATE = 1234.0  # ds/dt of `linear_s_model` [1/s]
 
-
-def state(s):
-    """Embedded states at flux labels s, with all angles and vpar zero.
+def read_truth(trajectory_file):
+    """The true orbits of the one configuration of the example file.
 
     Args:
-        s: flux labels.
+        trajectory_file (str): the file.
 
     Returns:
-        Array of shape s.shape + (5,).
-    """
-    s = np.asarray(s, dtype=float)
-    return bb.embed(s, 0 * s, 0 * s, 0 * s)
-
-
-def persistence(z0, record, n_steps):
-    """A rollout model that predicts no motion.
-
-    Args:
-        z0: initial states, (n, 5).
-        record: unused.
-        n_steps: number of lead times.
-
-    Returns:
-        z0 repeated at every lead time, (n, n_steps, 5).
-    """
-    return np.repeat(z0[:, None], n_steps, axis=1)
-
-
-def linear_s_model(z0, tau, record):
-    """A direct model in which s rises at the rate S_RATE.
-
-    Args:
-        z0: initial states, (n, 5).
-        tau: lead times [s], (n,).
-        record: unused.
-
-    Returns:
-        Predicted states, (n, 5).
-    """
-    s0 = z0[:, 0] ** 2 + z0[:, 1] ** 2
-    return state(np.minimum(s0 + S_RATE * tau, 1.0))
-
-
-def oracle_rollout(trajectory_file):
-    """Build a rollout model that returns the true orbits, at s = 0.99 after a loss.
-
-    Args:
-        trajectory_file: the file the model will be evaluated on.
-
-    Returns:
-        A rollout model, as `evaluate_trajectories` expects.
+        dict: as from ``read_trajectories``.
     """
     with h5py.File(trajectory_file, "r") as f:
-        device = bb.read_device(f, 0)
-    z = device["z"][device["n_valid"] >= 1]
-    z[np.isnan(z[..., 0])] = state(0.99)
-
-    def rollout(z0, record, n_steps):
-        """Return the stored orbits.
-
-        Args:
-            z0, record: unused; the orbits are those of the file.
-            n_steps: number of lead times.
-
-        Returns:
-            The stored states at lead times 1, ..., n_steps, (n, n_steps, 5).
-        """
-        return z[:, 1:n_steps + 1]
-    return rollout
+        return bb.read_trajectories(f, 0)
 
 
-def test_read_device(trajectory_file):
+def test_read_trajectories(trajectory_file):
     """On-grid samples and loss times are read; the off-grid loss sample is not a state.
 
     Args:
         trajectory_file: fixture, see conftest.py.
     """
-    with h5py.File(trajectory_file, "r") as f:
-        device = bb.read_device(f, 0)
-    assert list(device["n_valid"]) == [1000, 500, 0]
-    np.testing.assert_allclose(device["t_loss"], [np.nan, 500.4e-6, 0.5e-6])
-    z = device["z"]
+    truth = read_truth(trajectory_file)
+    assert list(truth["n_valid"]) == [1000, 500, 0]
+    np.testing.assert_allclose(truth["t_loss"], [np.nan, 500.4e-6, 0.5e-6])
+    z = truth["z"]
     assert z.shape == (3, 1000, 5)
-    np.testing.assert_allclose(z[0, 0], bb.embed(*np.array([0.3, 0.0, 0.0, 1e6])))
+    np.testing.assert_allclose(z[0, 0], bb.embed_state(*np.array([0.3, 0.0, 0.0, 1e6])))
     assert np.isnan(z[1, 500:]).all() and np.isfinite(z[1, :500]).all()
 
 
-def test_oracle_rollout(trajectory_file):
-    """The true orbits score nRMSE 0 and the right loss fraction.
-
-    The predicted loss is at the first sample after the true one, 501 us against
-    500.4 us, so with two scored orbits W1 = 0.6 / 2 = 0.3 us. The orbit with no
-    initial state is not scored.
+def test_true_predictions(trajectory_file):
+    """The true states and loss times score zero on every metric. The lost orbit's true
+    state at 999 us does not exist, so any prediction there is not scored, and the orbit
+    lost before its first sample is ignored.
 
     Args:
         trajectory_file: fixture, see conftest.py.
     """
-    m = bb.evaluate_trajectories([trajectory_file], rollout=oracle_rollout(trajectory_file))
+    truth = read_truth(trajectory_file)
+    z = np.nan_to_num(truth["z"][:, trajectory.TABLE_STEPS], nan=0.5)
+    m = bb.trajectory_metrics([trajectory_file], {"config-0": (z, truth["t_loss"])})
     assert m["nrmse_tau10us"] == m["nrmse_tau100us"] == m["nrmse_tau999us"] == 0
-    assert m["loss_fraction_mae"] == 0
-    np.testing.assert_allclose(m["w1_us"], 0.3, rtol=1e-9)
+    assert m["loss_fraction_mae"] == 0 and m["w1_us"] == 0
+    assert m["n_configurations"] == 1
 
 
-def test_persistence(trajectory_file):
-    """Predicting no motion loses nothing: loss-fraction error 1/2, W1 = (1000 - 500.4) / 2 us.
+def test_no_motion(trajectory_file):
+    """Predicting z(t) = z0 and no losses: the loss-fraction error is 1/2 and
+    W1 = (1000 - 500.4) / 2 us over the two scored orbits.
 
     Args:
         trajectory_file: fixture, see conftest.py.
     """
-    m = bb.evaluate_trajectories([trajectory_file], rollout=persistence)
+    truth = read_truth(trajectory_file)
+    z = np.repeat(np.nan_to_num(truth["z"][:, :1], nan=0.5), 3, axis=1)
+    t_loss = np.full(3, np.nan)
+    m = bb.trajectory_metrics([trajectory_file], {"config-0": (z, t_loss)})
     assert m["loss_fraction_mae"] == 0.5
     np.testing.assert_allclose(m["w1_us"], (1000 - 500.4) / 2)
     assert m["nrmse_tau10us"] > 0
 
 
-def test_direct_model_loss_time_is_bisected():
-    """s reaches 0.98 at a known time; bisection finds it to within 1 us / 2^N_BISECT."""
-    s0 = np.array([0.5, 0.9])
-    _, t_loss = trajectory._predict_direct(linear_s_model, state(s0), record=None)
-    expected = trajectory.DT + (0.98 - s0) / S_RATE  # absolute time: z0 is at t = 1 us
-    assert np.all(t_loss >= expected - 1e-15)
-    assert np.all(t_loss - expected <= trajectory.DT / 2 ** trajectory.N_BISECT)
+def test_loss_at_the_last_sample_counts():
+    """A predicted loss at t = 1 ms counts as a loss; one after it does not."""
+    truth = {"z": np.zeros((2, 1000, 5)), "n_valid": np.array([1000, 1000]), "t_loss": np.full(2, np.nan)}
+    z = np.zeros((2, 3, 5))
+    scores = trajectory._score_configuration(truth, z, np.array([trajectory.T_MAX, 1.1e-3]))
+    assert scores["f_pred"] == 0.5
 
 
-def test_exactly_one_model():
-    """evaluate_trajectories needs exactly one of rollout and predict_at."""
+def test_predictions_must_fit(trajectory_file):
+    """Predictions of the wrong shape, or for an unknown configuration, are errors.
+
+    Args:
+        trajectory_file: fixture, see conftest.py.
+    """
     with pytest.raises(ValueError):
-        bb.evaluate_trajectories([])
+        bb.trajectory_metrics([trajectory_file], {"config-0": (np.zeros((2, 3, 5)), np.zeros(2))})
+    with pytest.raises(KeyError):
+        bb.trajectory_metrics([trajectory_file], {"no-such-uuid": (np.zeros((3, 3, 5)), np.zeros(3))})

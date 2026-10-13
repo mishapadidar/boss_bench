@@ -1,12 +1,12 @@
 """Tests that NaN and inf inputs raise an error instead of giving a silent result."""
 
-from functools import partial
-
+import h5py
 import numpy as np
 import pytest
 
 import boss_bench as bb
-from test_heat_flux import random_target
+from boss_bench import heat_flux
+from test_heat_flux import random_target, torus_fields
 
 BAD_VALUES = [np.nan, np.inf]
 
@@ -16,7 +16,7 @@ def test_loss_quantities(bad):
     """Loss quantities reject non-finite confinement times.
 
     Args:
-        bad: the non-finite value.
+        bad (float): the non-finite value.
     """
     ct, s_init = np.array([0.05, bad]), np.array([0.1, 0.1])
     for f in (bb.loss_fraction, bb.energy_loss, bb.normalized_energy_loss):
@@ -26,60 +26,49 @@ def test_loss_quantities(bad):
 
 @pytest.mark.parametrize("bad", BAD_VALUES)
 def test_heat_flux_prediction(bad):
-    """heat_flux_metrics rejects non-finite predicted strike points and loss fractions.
+    """Predicted strike points and loss fractions must be finite.
 
     Args:
-        bad: the non-finite value.
+        bad (float): the non-finite value.
     """
     t = random_target(50)
     zeta = t["zeta"].copy()
     zeta[0] = bad
     with pytest.raises(ValueError):
-        bb.heat_flux_metrics(zeta, t["theta"], t["energy"], t["loss_fraction"], t)
+        heat_flux._sample_metrics(zeta, t["theta"], t["energy"], t["loss_fraction"], t)
     with pytest.raises(ValueError):
-        bb.heat_flux_metrics(t["zeta"], t["theta"], t["energy"], bad, t)
-
-
-def bad_rollout(z0, record, n_steps, bad):
-    """A rollout model whose output is all non-finite.
-
-    Args:
-        z0: initial states, (n, 5).
-        record, n_steps: as for a rollout model.
-        bad: the non-finite value to return.
-
-    Returns:
-        (n, n_steps, 5) array filled with bad.
-    """
-    return np.full((len(z0), n_steps, 5), bad)
-
-
-def bad_predict_at(z0, tau, record, bad):
-    """A direct model whose output is all non-finite.
-
-    Args:
-        z0: initial states, (n, 5).
-        tau, record: as for a direct model.
-        bad: the non-finite value to return.
-
-    Returns:
-        (n, 5) array filled with bad.
-    """
-    return np.full((len(z0), 5), bad)
+        heat_flux._sample_metrics(t["zeta"], t["theta"], t["energy"], bad, t)
+    with pytest.raises(ValueError):
+        bb.binned_heat_flux(zeta, t["theta"], t["energy"], 1000, torus_fields())
 
 
 @pytest.mark.parametrize("bad", BAD_VALUES)
-def test_trajectory_models(trajectory_file, bad):
-    """evaluate_trajectories rejects models that return non-finite states.
+def test_trajectory_predictions(trajectory_file, bad):
+    """Predicted states of scored orbits must be finite, and loss times not infinite.
 
     Args:
         trajectory_file: fixture, see conftest.py.
-        bad: the non-finite value.
+        bad (float): the non-finite value.
     """
+    with h5py.File(trajectory_file, "r") as f:
+        t_loss = bb.read_trajectories(f, 0)["t_loss"]
+    z = np.zeros((3, 3, 5))
+    z[0, 0, 0] = bad
     with pytest.raises(ValueError):
-        bb.evaluate_trajectories([trajectory_file], rollout=partial(bad_rollout, bad=bad))
+        bb.trajectory_metrics([trajectory_file], {"config-0": (z, t_loss)})
     with pytest.raises(ValueError):
-        bb.evaluate_trajectories([trajectory_file], predict_at=partial(bad_predict_at, bad=bad))
+        bb.trajectory_metrics([trajectory_file], {"config-0": (np.zeros((3, 3, 5)), np.array([np.inf, 1e-4, 1e-4]))})
+
+
+def test_unscored_orbits_may_be_nan(trajectory_file):
+    """The orbit lost before its first sample is not scored, so its prediction may be NaN.
+
+    Args:
+        trajectory_file: fixture, see conftest.py.
+    """
+    z = np.zeros((3, 3, 5))
+    z[2] = np.nan
+    bb.trajectory_metrics([trajectory_file], {"config-0": (z, np.full(3, np.nan))})
 
 
 @pytest.mark.parametrize("bad", BAD_VALUES)
@@ -87,7 +76,7 @@ def test_design_metrics(bad):
     """design_metrics rejects non-finite inputs.
 
     Args:
-        bad: the non-finite value.
+        bad (float): the non-finite value.
     """
     with pytest.raises(ValueError):
         bb.design_metrics([0.1, bad], [1.5, 1.5], [1.5, 1.5], [5.0, 5.0], [5.0, 5.0])

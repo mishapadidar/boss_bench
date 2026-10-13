@@ -9,20 +9,21 @@ from boss_bench import heat_flux
 from conftest import A, NFP, R0, T_MAX, torus_fields
 
 N_LAUNCHED = 1000
+PARTICLE_FIELDS = ["uuid", "confinement_time", "t_max", "s_init", "zeta_end", "theta_end"]
 
 
 def torus_target(zeta, theta, energy):
     """A heat-flux target on the circular torus with the given strike points.
 
     Args:
-        zeta, theta: Boozer angles of the strike points [rad].
-        energy: their energies [MeV].
+        zeta, theta (np.ndarray): Boozer angles of the strike points [rad].
+        energy (np.ndarray): their energies [MeV].
 
     Returns:
-        A target dict, as from `heat_flux_targets`.
+        dict: a target, as from ``heat_flux._targets``.
     """
     record = torus_fields()
-    geometry = {k: heat_flux._boundary_slice(record, k + "_boozer") for k in ("R", "Z", "nu")}
+    geometry = {key: heat_flux._boundary_slice(record, name) for key, name in heat_flux.BOOZER_FIELDS.items()}
     return {"s_init": 0.1, "n_launched": N_LAUNCHED, "loss_fraction": len(zeta) / N_LAUNCHED,
             "zeta": zeta, "theta": theta, "energy": energy, "nfp": NFP, **geometry}
 
@@ -31,32 +32,49 @@ def random_target(n_lost, seed=0):
     """A target with n_lost strike points in a band around theta = 3, with random energies.
 
     Args:
-        n_lost: number of strike points.
-        seed: random seed.
+        n_lost (int): number of strike points.
+        seed (int): random seed.
 
     Returns:
-        A target dict.
+        dict: a target.
     """
     rng = np.random.default_rng(seed)
     return torus_target(rng.uniform(0, 2 * np.pi, n_lost), 3 + 0.2 * rng.standard_normal(n_lost),
                         rng.uniform(0.5, 3.5, n_lost))
 
 
-def test_targets(confinement_file):
+def true_predictions(path):
+    """Predictions equal to the truth for every sample of a confinement file.
+
+    Args:
+        path (str): the confinement file.
+
+    Returns:
+        dict: maps (uuid, s0) to (zeta, theta, energy, loss_fraction).
+    """
+    predictions = {}
+    with h5py.File(path, "r") as f:
+        for i in range(len(f["uuid"])):
+            record = bb.load_record(f, i, PARTICLE_FIELDS)
+            for s0 in (0.1, 0.25, 0.5):
+                zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
+                predictions[record["uuid"], s0] = (zeta, theta, energy, len(zeta) / n_launched)
+    return predictions
+
+
+def test_lost_particles(confinement_file):
     """Each birth surface loses two of its four particles, with energy 3.5 exp(-2 tau / t_max).
 
     Args:
         confinement_file: fixture, see conftest.py.
     """
     with h5py.File(confinement_file, "r") as f:
-        targets = bb.heat_flux_targets(bb.load_record(f, 0))
-    assert [t["s_init"] for t in targets] == [0.1, 0.25, 0.5]
-    for t in targets:
-        assert t["n_launched"] == 4
-        assert t["loss_fraction"] == 0.5
-        np.testing.assert_allclose(t["energy"], 3.5 * np.exp(-2 * np.array([0.05, 0.001]) / T_MAX))
-        assert np.all((t["zeta"] >= 0) & (t["zeta"] < 2 * np.pi))
-        assert t["R"].shape == (41, 41)
+        record = bb.load_record(f, 0, PARTICLE_FIELDS)
+    for s0 in (0.1, 0.25, 0.5):
+        zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
+        assert n_launched == 4 and len(zeta) == 2
+        np.testing.assert_allclose(energy, 3.5 * np.exp(-2 * np.array([0.05, 0.001]) / T_MAX))
+        assert np.all((zeta >= 0) & (zeta < 2 * np.pi) & (theta >= 0) & (theta < 2 * np.pi))
 
 
 def test_bin_areas_sum_to_boundary_area():
@@ -66,11 +84,20 @@ def test_bin_areas_sum_to_boundary_area():
     np.testing.assert_allclose(area.sum() * NFP, 4 * np.pi ** 2 * R0 * A, rtol=1e-3)
 
 
+def test_binned_heat_flux_integrates_to_energy_lost():
+    """Integrated over the boundary, the heat flux is the energy lost per launched particle."""
+    t = random_target(500)
+    q = bb.binned_heat_flux(t["zeta"], t["theta"], t["energy"], N_LAUNCHED, torus_fields(), resolution=16)
+    area = heat_flux._period_bin_areas(t["R"], t["Z"], t["nu"], NFP, 16)
+    assert q.shape == (16, 16)
+    np.testing.assert_allclose(NFP * (q * area).sum(), t["energy"].sum() / N_LAUNCHED)
+
+
 def test_perfect_prediction():
     """Predicting the true strike points gives HF = 0, no loss-fraction error, and the
     energy distance of a cloud with itself, sqrt(2 / n)."""
     t = random_target(200)
-    m = bb.heat_flux_metrics(t["zeta"], t["theta"], t["energy"], t["loss_fraction"], t)
+    m = heat_flux._sample_metrics(t["zeta"], t["theta"], t["energy"], t["loss_fraction"], t)
     assert m["HF_16"] == pytest.approx(0, abs=1e-12) and m["HF_32"] == pytest.approx(0, abs=1e-12)
     assert m["loss_fraction_error"] == 0
     np.testing.assert_allclose(m["ED"], np.sqrt(2 / 200))
@@ -92,13 +119,13 @@ def test_energy_distance_needs_predicted_points():
     t = random_target(50)
     empty = np.array([])
     with pytest.raises(ValueError):
-        bb.heat_flux_metrics(empty, empty, empty, 0.0, t)
+        heat_flux._sample_metrics(empty, empty, empty, 0.0, t)
 
 
 def test_energy_distance_grows_with_displacement():
     """A band of strike points displaced farther from the truth has a larger energy distance."""
     t = random_target(300)
-    eds = [bb.heat_flux_metrics(t["zeta"], t["theta"] + shift, t["energy"], t["loss_fraction"], t)["ED"]
+    eds = [heat_flux._sample_metrics(t["zeta"], t["theta"] + shift, t["energy"], t["loss_fraction"], t)["ED"]
            for shift in (0.0, 0.3, 1.0)]
     assert eds[0] < eds[1] < eds[2]
 
@@ -106,46 +133,30 @@ def test_energy_distance_grows_with_displacement():
 def test_few_losses_have_no_energy_distance():
     """ED is NaN below MIN_LOST_ED lost particles, and the summary skips it."""
     few, many = random_target(5), random_target(50)
-    results = [bb.heat_flux_metrics(t["zeta"], t["theta"], t["energy"], t["loss_fraction"], t) for t in (few, many)]
+    results = [heat_flux._sample_metrics(t["zeta"], t["theta"], t["energy"], t["loss_fraction"], t)
+               for t in (few, many)]
     assert np.isnan(results[0]["ED"])
     summary = heat_flux._summarize(results)
     assert summary["ED_median"] == pytest.approx(results[1]["ED"])
     assert summary["HF_16_mean"] == pytest.approx(0, abs=1e-12)
 
 
-def true_predictions(path):
-    """Predictions equal to the truth for every sample of a confinement file.
-
-    Args:
-        path: the confinement file.
-
-    Returns:
-        Dict mapping (uuid, s0) to (zeta, theta, energy, loss_fraction).
-    """
-    predictions = {}
-    with h5py.File(path, "r") as f:
-        for i in range(len(f["uuid"])):
-            record = bb.load_record(f, i, heat_flux.HEAT_FLUX_FIELDS)
-            for t in bb.heat_flux_targets(record):
-                predictions[record["uuid"], t["s_init"]] = (t["zeta"], t["theta"], t["energy"], t["loss_fraction"])
-    return predictions
-
-
-def test_evaluate_perfect_predictions(confinement_file):
-    """The true strike points score HF 0 and no loss-fraction error; with only two lost
-    particles per sample, no sample has an energy distance.
+def test_metrics_of_perfect_predictions(confinement_file):
+    """The true strike points score HF 0 and no loss-fraction error on every sample; with
+    only two lost particles per sample, no sample has an energy distance.
 
     Args:
         confinement_file: fixture, see conftest.py.
     """
-    summary = bb.evaluate_heat_flux([confinement_file], true_predictions(confinement_file))
+    summary = bb.heat_flux_metrics([confinement_file], true_predictions(confinement_file))
+    assert summary["n_samples"] == 6
     for key in ("HF_16_median", "HF_16_mean", "HF_32_median", "HF_32_mean",
                 "loss_fraction_median_abs_error", "loss_fraction_mean_abs_error"):
         assert summary[key] == pytest.approx(0, abs=1e-12)
     assert np.isnan(summary["ED_median"])
 
 
-def test_evaluate_matches_sample_by_sample(confinement_file):
+def test_metrics_match_sample_by_sample(confinement_file):
     """Reading the file in blocks gives the same scores as scoring each record on its own.
 
     Args:
@@ -158,21 +169,23 @@ def test_evaluate_matches_sample_by_sample(confinement_file):
     with h5py.File(confinement_file, "r") as f:
         for i in range(len(f["uuid"])):
             record = bb.load_record(f, i)
-            for t in bb.heat_flux_targets(record):
-                results.append(bb.heat_flux_metrics(*predictions[record["uuid"], t["s_init"]], t))
+            geometry = {key: heat_flux._boundary_slice(record, name) for key, name in heat_flux.BOOZER_FIELDS.items()}
+            for t in heat_flux._targets({**record, **geometry}):
+                results.append(heat_flux._sample_metrics(*predictions[record["uuid"], t["s_init"]], t))
     expected = heat_flux._summarize(results)
-    summary = bb.evaluate_heat_flux([confinement_file], predictions)
+    summary = bb.heat_flux_metrics([confinement_file], predictions)
     for key, value in expected.items():
         assert summary[key] == pytest.approx(value, nan_ok=True)
 
 
-def test_evaluate_needs_every_sample(confinement_file):
-    """A sample without a prediction is an error.
+def test_metrics_of_some_samples(confinement_file):
+    """Only the predicted samples are scored, and a prediction for an unknown sample is an error.
 
     Args:
         confinement_file: fixture, see conftest.py.
     """
     predictions = true_predictions(confinement_file)
-    predictions.pop(("config-1", 0.25))
+    some = {key: value for key, value in predictions.items() if key[0] == "config-1"}
+    assert bb.heat_flux_metrics([confinement_file], some)["n_samples"] == 3
     with pytest.raises(KeyError):
-        bb.evaluate_heat_flux([confinement_file], predictions)
+        bb.heat_flux_metrics([confinement_file], {**some, ("no-such-uuid", 0.1): some["config-1", 0.1]})

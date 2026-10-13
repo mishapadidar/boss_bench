@@ -60,7 +60,7 @@ with h5py.File(files[0], "r") as f:
 data = bb.load(files, ["nfp", "aspect_ratio"])          # fields stacked over files
 ```
 
-## Particle losses
+## Particle losses and heat flux
 
 A particle is lost if `confinement_time < t_max - 1e-14`. Each quantity is computed over
 the particles born on one surface `s0`:
@@ -70,18 +70,24 @@ ct, t_max, s_init = record["confinement_time"], record["t_max"], record["s_init"
 bb.loss_fraction(ct, t_max, s_init, s0=0.1)           # fraction lost
 bb.energy_loss(ct, t_max, s_init, s0=0.1)             # mean of 3.5 MeV * exp(-2 ct / t_max)
 bb.normalized_energy_loss(ct, t_max, s_init, s0=0.1)  # the same, rescaled to [0, 1]
+
+zeta, theta, energy, n_launched = bb.lost_particles(record, s0=0.1)          # where they strike the boundary
+q = bb.binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32)  # heat flux per bin
 ```
 
 ## Benchmarks
+
+Each benchmark takes your predictions and returns the paper's metrics. Predictions may
+use any field of a configuration except the outcomes of the particle tracing
+(`confinement_time`, `s_end`, `theta_end`, `zeta_end`, `vpar_end`). The benchmarks score
+every test sample; the metrics report how many samples were scored.
 
 **Surrogate models.** Predict a per-configuration quantity on the test split, such as
 `bb.loss_fraction` or `bb.normalized_energy_loss` at `s0 = 0.1`.
 
 **Heat flux.** For each test configuration and birth surface `s0`, predict the loss
 fraction and the strike points of the lost particles on the plasma boundary: their Boozer
-angles `zeta`, `theta` and energies. Predictions may use any field of the configuration
-except the outcomes of the particle tracing (`confinement_time`, `s_end`, `theta_end`,
-`zeta_end`, `vpar_end`). Read only the fields your model needs:
+angles `zeta`, `theta` and energies.
 
 ```python
 paths = bb.list_files("BoSS", "confinement", "test")
@@ -89,19 +95,20 @@ predictions = {}
 for path in paths:
     with h5py.File(path, "r") as f:
         for i in range(len(f["uuid"])):
-            record = bb.load_record(f, i, ["uuid", "boundary_xyz", "iota", "nfp"])
+            record = bb.load_record(f, i, ["uuid", "boundary_xyz", "iota", "nfp"])  # what your model needs
             for s0 in (0.1, 0.25, 0.5):
                 predictions[record["uuid"], s0] = my_model(record, s0)  # (zeta, theta, energy, loss_fraction)
-bb.evaluate_heat_flux(paths, predictions)
+bb.heat_flux_metrics(paths, predictions)
 ```
 
-**Trajectories.** Predict every orbit in the test files from its first sample, with
-either a rollout model or a model of the state at any lead time:
+**Trajectories.** For each orbit in the test files, predict from its first sample the
+state at lead times `10`, `100` and `999` us, and the loss time (`NaN` if not lost). States
+are in the embedded form of `bb.embed_state`; `bb.read_trajectories` reads the orbits.
 
 ```python
 paths = bb.list_files("BoSS", "trajectory", "test")
-bb.evaluate_trajectories(paths, rollout=my_rollout)
-bb.evaluate_trajectories(paths, predict_at=my_predict_at)
+predictions = {}  # uuid -> (z of shape (n_orbits, 3, 5), t_loss of shape (n_orbits,))
+bb.trajectory_metrics(paths, predictions)
 ```
 
 **Inverse design.** Evaluate each design with VMEC and particle tracing at ARIES-CS scale,
@@ -117,9 +124,21 @@ bb.design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, aspe
 bb.plot_device(record)                          # plasma boundary colored by |B|
 bb.plot_modB_boozer(record, s=0.5)              # |B| on a flux surface in Boozer coordinates
 bb.plot_loss_fraction_curves(record)            # fraction lost vs time, per birth surface
-bb.plot_strike_points(targets, predictions)     # heat-flux strike points and their density
+bb.plot_strike_points(record, predictions)      # true (and predicted) strike points and density
+bb.plot_heat_flux(q, nfp)                       # heat flux from bb.binned_heat_flux
 bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per channel
 ```
+
+## Examples
+
+The `examples/` folder has three short scripts, each run as `python <script> DATA_DIR`:
+
+- `explore_configuration.py` loads a configuration and plots its shape, `|B|`, loss
+  fraction curves, and true against predicted strike points and heat flux.
+- `heat_flux_benchmark.py` scores made-up heat-flux predictions on a small batch of test
+  configurations.
+- `trajectory_rollouts.py` loads the orbits of one configuration, plots made-up
+  predictions against them and scores them.
 
 ## Tests
 

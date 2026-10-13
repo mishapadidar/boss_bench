@@ -1,7 +1,8 @@
 """Alpha-particle loss quantities.
 
-Particle arrays are (n,) for one configuration or (m, n) for m configurations, and
-``t_max`` is then a scalar or (m,). All inputs must be finite.
+Particle arrays have shape (n,) for the n particles of one stellarator configuration, or
+(m, n) for m configurations, and ``t_max`` is then a scalar or has shape (m,). All inputs
+must be finite.
 """
 
 import numpy as np
@@ -23,11 +24,11 @@ def is_lost(confinement_time, t_max):
         t_i < t_\text{max} - 10^{-14}.
 
     Args:
-        confinement_time: particle confinement times [s].
-        t_max: simulation time [s].
+        confinement_time (np.ndarray): particle confinement times [s], shape (n,) or (m, n).
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape (m,).
 
     Returns:
-        Boolean array, True where ``confinement_time < t_max - 1e-14``.
+        np.ndarray: boolean, the shape of confinement_time, True for lost particles.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -46,13 +47,13 @@ def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
         f = \frac{1}{N} \sum_{i \in P} \mathbb{1}\left[t_i < t_\text{max} - 10^{-14}\right].
 
     Args:
-        confinement_time: particle confinement times [s].
-        t_max: simulation time [s].
-        s_init: particle birth surfaces.
-        s0: the birth surface to average over.
+        confinement_time (np.ndarray): particle confinement times [s], shape (n,) or (m, n).
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape (m,).
+        s_init (np.ndarray): particle birth surfaces, the shape of confinement_time.
+        s0 (float): the birth surface to average over.
 
     Returns:
-        Loss fraction, a scalar, or (m,) for m configurations.
+        float or np.ndarray: the loss fraction, a scalar or shape (m,).
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -72,13 +73,13 @@ def energy_loss(confinement_time, t_max, s_init, s0=0.1):
     so a confined particle (:math:`t_i = t_\text{max}`) counts :math:`3.5\,e^{-2}` MeV.
 
     Args:
-        confinement_time: particle confinement times [s].
-        t_max: simulation time [s].
-        s_init: particle birth surfaces.
-        s0: the birth surface to average over.
+        confinement_time (np.ndarray): particle confinement times [s], shape (n,) or (m, n).
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape (m,).
+        s_init (np.ndarray): particle birth surfaces, the shape of confinement_time.
+        s0 (float): the birth surface to average over.
 
     Returns:
-        Energy loss [MeV], a scalar, or (m,) for m configurations.
+        float or np.ndarray: the energy loss [MeV], a scalar or shape (m,).
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -100,13 +101,13 @@ def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
     which is 0 if every particle is confined and 1 if every particle is lost at once.
 
     Args:
-        confinement_time: particle confinement times [s].
-        t_max: simulation time [s].
-        s_init: particle birth surfaces.
-        s0: the birth surface to average over.
+        confinement_time (np.ndarray): particle confinement times [s], shape (n,) or (m, n).
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape (m,).
+        s_init (np.ndarray): particle birth surfaces, the shape of confinement_time.
+        s0 (float): the birth surface to average over.
 
     Returns:
-        Normalized energy loss, a scalar, or (m,) for m configurations.
+        float or np.ndarray: the normalized energy loss, a scalar or shape (m,).
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -121,12 +122,12 @@ def _mean_on_surface(values, s_init, s0):
     """Average a per-particle quantity over the particles born on one surface.
 
     Args:
-        values: per-particle values, (n,) or (m, n).
-        s_init: particle birth surfaces, same shape as values.
-        s0: the birth surface to average over.
+        values (np.ndarray): per-particle values, shape (n,) or (m, n).
+        s_init (np.ndarray): particle birth surfaces, the shape of values.
+        s0 (float): the birth surface to average over.
 
     Returns:
-        The mean over the last axis, restricted to particles with ``s_init == s0``.
+        float or np.ndarray: the mean over the last axis of the particles with ``s_init == s0``.
 
     Raises:
         ValueError: if s_init contains NaN or inf.

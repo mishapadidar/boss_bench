@@ -28,14 +28,15 @@ def design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, asp
         \text{aspect error} = 100\, \operatorname{median}_j \frac{|A_j - A^*_j|}{A^*_j}.
 
     Args:
-        loss_fraction: traced loss fraction of the particles born on s = 0.1, per design.
-        mirror_ratio: mirror ratio, per design.
-        mirror_target: target mirror ratio, per design.
-        aspect_ratio: aspect ratio, per design.
-        aspect_target: target aspect ratio, per design.
+        loss_fraction (array_like): traced loss fraction of the particles born on s = 0.1,
+            one value per design, shape (n,).
+        mirror_ratio (array_like): mirror ratio, one value per design, shape (n,).
+        mirror_target (array_like): target mirror ratio, one value per design, shape (n,).
+        aspect_ratio (array_like): aspect ratio, one value per design, shape (n,).
+        aspect_target (array_like): target aspect ratio, one value per design, shape (n,).
 
     Returns:
-        Dict of percentages, holding the share of designs with loss fraction <= 10% and <= 15%
+        dict: percentages, holding the share of designs with loss fraction <= 10% and <= 15%
         ("low_loss_rate_10", "low_loss_rate_15"), with mirror ratio <= target and
         <= 1.1 * target ("mirror_constraint", "mirror_constraint_1.1"), and the median
         relative aspect-ratio error ("aspect_error_median").

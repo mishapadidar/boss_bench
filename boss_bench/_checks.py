@@ -7,7 +7,7 @@ def require_finite(**arrays):
     """Raise an error if any input contains NaN or inf.
 
     Args:
-        **arrays: the inputs to check, by name.
+        **arrays (array_like): the inputs to check, by name.
 
     Raises:
         ValueError: naming the first input that is not finite.
