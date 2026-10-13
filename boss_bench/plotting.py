@@ -16,12 +16,13 @@ TRAJECTORY_CHANNELS = [  # (channel of z, title, toroidal)
 
 
 def plot_device(record, ax=None):
-    """Draw the plasma boundary over the full torus, colored by ``|B|``, viewed from above.
+    """Draw the plasma boundary over the full torus, colored by :math:`|B|` and viewed from above.
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record``; at least
+        record (dict): the configuration's fields from ``data.load_record``, including
             ``boundary_xyz``, ``modB``, ``phi1d``, ``theta1d`` and ``nfp``.
-        ax (matplotlib.axes.Axes, optional): a 3D axis to draw on. By default a new figure is made.
+        ax (matplotlib.axes.Axes, optional): a 3D axis to draw on. By default, a new figure
+            is made.
 
     Returns:
         matplotlib.axes.Axes: the axis.
@@ -42,13 +43,14 @@ def plot_device(record, ax=None):
 
 
 def plot_modB_boozer(record, s=0.5, ax=None):
-    """Contours of ``|B|`` on a flux surface in Boozer coordinates, with field lines in black.
+    """Contours of :math:`|B|` on a flux surface in Boozer coordinates, with field lines in black.
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record``; at least
+        record (dict): the configuration's fields from ``data.load_record``, including
             ``modB_boozer``, ``iota``, ``s1d``, ``phi1d``, ``theta1d`` and ``nfp``.
         s (float): the flux surface; the nearest stored surface is used.
-        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default a new figure is made.
+        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default, a new figure
+            is made.
 
     Returns:
         matplotlib.axes.Axes: the axis.
@@ -71,12 +73,13 @@ def plot_modB_boozer(record, s=0.5, ax=None):
 
 
 def plot_loss_fraction_curves(record, ax=None):
-    """Fraction of particles lost by time t, for each birth surface.
+    """Fraction of particles lost by time :math:`t`, for each birth surface.
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record`` on a
-            confinement file; at least ``confinement_time``, ``s_init`` and ``t_max``.
-        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default a new figure is made.
+        record (dict): the configuration's fields from ``data.load_record`` on a confinement
+            file, including ``confinement_time``, ``s_init`` and ``t_max``.
+        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default, a new figure
+            is made.
 
     Returns:
         matplotlib.axes.Axes: the axis.
@@ -100,19 +103,19 @@ def plot_loss_fraction_curves(record, ax=None):
 
 
 def plot_strike_points(record, predictions=None, bins=32):
-    """Where the lost particles strike the boundary: as points colored by energy, and as a density.
+    """Where the lost particles strike the boundary, as points colored by energy and as a density.
 
-    One column per birth surface. The first row shows the true strike points, the second
-    their density; predictions, if given, add two more rows, drawn with the same color
-    scales. The density of lost particles is their histogram over the Boozer angles of the
-    full torus, normalized to integrate to 1 [1 / rad^2].
+    One column per birth surface: the first row shows the true strike points, the second
+    their density. Predictions, if given, add two more rows with the same color scales. The
+    density is a histogram over the Boozer angles of the full torus, normalized to integrate
+    to 1 [1/rad²].
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record`` on a
-            confinement file; at least those read by ``heat_flux.lost_particles``.
-        predictions (dict, optional): maps each birth surface s0 to a tuple (zeta, theta,
-            energy, loss_fraction), as in ``heat_flux.heat_flux_metrics``.
-        bins (int): number of density bins per angle.
+        record (dict): the configuration's fields from ``data.load_record`` on a confinement
+            file.
+        predictions (dict, optional): maps each birth surface ``s0`` to a tuple
+            ``(zeta, theta, energy, loss_fraction)``, as in ``heat_flux.heat_flux_metrics``.
+        bins (int): the number of density bins per angle.
 
     Returns:
         matplotlib.figure.Figure: the figure.
@@ -154,17 +157,16 @@ def plot_strike_points(record, predictions=None, bins=32):
 def plot_heat_flux(record, predictions=None, resolution=32):
     """The heat flux on the boundary over one field period, from ``heat_flux.binned_heat_flux``.
 
-    One column per birth surface. Predictions, if given, are drawn in a second row, on the
-    same color scale as the truth above them, and scaled so that their total is the
-    predicted loss fraction, as in ``heat_flux.heat_flux_metrics``.
+    One column per birth surface. Predictions, if given, are drawn in a second row on the
+    same color scale as the truth, scaled so that their total is the predicted loss
+    fraction.
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record`` on a
-            confinement file; at least those read by ``heat_flux.lost_particles`` and
-            ``heat_flux.binned_heat_flux``.
-        predictions (dict, optional): maps each birth surface s0 to a tuple (zeta, theta,
-            energy, loss_fraction), as in ``heat_flux.heat_flux_metrics``.
-        resolution (int): number of bins per angle.
+        record (dict): the configuration's fields from ``data.load_record`` on a confinement
+            file.
+        predictions (dict, optional): maps each birth surface ``s0`` to a tuple
+            ``(zeta, theta, energy, loss_fraction)``, as in ``heat_flux.heat_flux_metrics``.
+        resolution (int): the number of bins per angle.
 
     Returns:
         matplotlib.figure.Figure: the figure.
@@ -194,17 +196,18 @@ def plot_heat_flux(record, predictions=None, resolution=32):
 
 
 def plot_rollouts(z_true, z_pred=None, window_us=350, toroidal_window_us=20):
-    """Embedded trajectories against lead time: one row per particle, one column per channel.
+    r"""Embedded orbits against lead time: one row per orbit, one column per channel.
 
-    The toroidal channels complete about one transit per sample, so they are drawn over
-    a shorter window, with markers.
+    The toroidal channels go around about once per sample, so they are drawn over a shorter
+    window, with markers.
 
     Args:
-        z_true (np.ndarray): true embedded states, shape (n, T, 5), with row k at lead time
-            k us, as from ``trajectory.read_trajectories``; NaN after a loss.
-        z_pred (np.ndarray, optional): predicted states in the same layout.
-        window_us (float): lead times shown for the x, y and lambda channels [us].
-        toroidal_window_us (float): lead times shown for the toroidal channels [us].
+        z_true (np.ndarray): true embedded states, shape ``(n, T, 5)``, with row ``k`` at lead
+            time :math:`k` µs, as from ``trajectory.read_trajectories``.
+        z_pred (np.ndarray, optional): predicted states, of the same shape.
+        window_us (float): the lead times shown for the :math:`x`, :math:`y` and
+            :math:`\lambda` channels [µs].
+        toroidal_window_us (float): the lead times shown for the toroidal channels [µs].
 
     Returns:
         matplotlib.figure.Figure: the figure.

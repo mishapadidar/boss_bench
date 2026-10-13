@@ -1,10 +1,4 @@
-"""Trajectory benchmark: predict guiding-center orbits from their initial state.
-
-Orbits are sampled every DT = 1 us, from t = 1 us up to T_MAX = 1 ms. A lost orbit ends
-with one extra, off-grid sample at its loss time. A model is given an orbit's first
-sample z0, in the embedded form of ``embed_state``, and predicts the state at lead times
-tau = k * DT after it, k = 1, ..., 999, and whether and when the particle is lost.
-"""
+"""Trajectory benchmark: predict guiding-center orbits from their first sample."""
 
 import h5py
 import numpy as np
@@ -41,38 +35,38 @@ def embed_state(s, theta, phi, vpar):
     with :math:`v_\alpha` the speed of a 3.5 MeV alpha particle.
 
     Args:
-        s (np.ndarray): normalized toroidal flux, in [0, 1], shape (n,).
-        theta (np.ndarray): Boozer poloidal angle [rad], shape (n,).
-        phi (np.ndarray): Boozer toroidal angle [rad], shape (n,).
-        vpar (np.ndarray): parallel velocity [m/s], shape (n,).
+        s (np.ndarray): normalized toroidal flux, shape ``(n,)``.
+        theta (np.ndarray): Boozer poloidal angle [rad], shape ``(n,)``.
+        phi (np.ndarray): Boozer toroidal angle [rad], shape ``(n,)``.
+        vpar (np.ndarray): parallel velocity [m/s], shape ``(n,)``.
 
     Returns:
-        np.ndarray: the embedded states, shape (n, 5). Inputs of any other shape also
-        work; the states then have one more axis, of length 5.
+        np.ndarray: the embedded states, shape ``(n, 5)``. Other input shapes work too, with
+        one more axis of length 5 in the result.
     """
     r = np.sqrt(s)
     return np.stack([r * np.cos(theta), r * np.sin(theta), np.cos(phi), np.sin(phi), vpar / V_ALPHA], axis=-1)
 
 
 def load_trajectory(f, config, particle):
-    """Read one orbit of one stellarator configuration of a trajectory file, as stored.
+    """Read one orbit of one configuration of a trajectory file.
 
-    The orbit's samples are arrays of shape (n_samples,): the time ``t`` [s], the
-    normalized toroidal flux ``s``, the Boozer poloidal and toroidal angles ``theta`` and
-    ``zeta`` [rad], and the parallel velocity ``vpar`` [m/s]. Samples are every DT = 1 us from t = 1 us; a lost orbit
-    ends with one extra sample at its loss time.
+    The orbit is returned as stored: its time ``t`` [s], normalized toroidal flux ``s``,
+    Boozer angles ``theta`` and ``zeta`` [rad], and parallel velocity ``vpar`` [m/s], each of
+    shape ``(n_samples,)``. The samples are 1 µs apart, starting at :math:`t = 1` µs; a lost
+    orbit ends with one more sample, at the time it was lost.
 
     Args:
-        f (h5py.File): an open trajectory file, e.g. ``h5py.File(path, "r")``.
-        config (int or str): the configuration, by its index in the file or its uuid.
+        f (h5py.File): an open trajectory file.
+        config (int or str): the configuration, by its row in the file or its ``uuid``.
         particle (int): the orbit, by its index among the configuration's orbits.
 
     Returns:
-        dict: **"t", "s", "theta", "zeta", "vpar"**, the orbit's samples.
+        dict: **t, s, theta, zeta, vpar**, the samples of the orbit.
 
     Raises:
-        KeyError: if a uuid is given that is not in the file.
-        IndexError: if the configuration has no orbit with index particle.
+        KeyError: if no configuration in the file has this ``uuid``.
+        IndexError: if the configuration has no orbit with index ``particle``.
     """
     i = _config_index(f, config)
     c0, c1 = f["config_offsets"][i], f["config_offsets"][i + 1]
@@ -84,27 +78,26 @@ def load_trajectory(f, config, particle):
 
 
 def to_xyz(record, s, theta, zeta):
-    r"""Cartesian positions of points given in Boozer coordinates, e.g. the samples of an orbit.
+    r"""Cartesian positions of points given in Boozer coordinates, such as the samples of an orbit.
 
-    The cylindrical coordinates :math:`R`, :math:`Z` and the angle difference :math:`\nu`
-    are interpolated from the configuration's Boozer grid: spectrally in the two angles,
-    in which the grid is periodic, and with a cubic spline in :math:`\sqrt{s}` across the
-    flux surfaces. With the cylindrical toroidal angle :math:`\phi = \zeta - \nu`,
+    :math:`R`, :math:`Z` and :math:`\nu` are interpolated from the configuration's Boozer grid,
+    spectrally in the angles and with a cubic spline in :math:`\sqrt{s}`. With the cylindrical
+    toroidal angle :math:`\phi = \zeta - \nu`,
 
     .. math::
 
         (x, y, z) = (R \cos\phi,\ R \sin\phi,\ Z).
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record``; at least
+        record (dict): the configuration's fields from ``data.load_record``, including
             ``R_boozer``, ``Z_boozer``, ``nu_boozer``, ``s1d`` and ``nfp``.
-        s (np.ndarray): normalized toroidal flux, in [0, 1], shape (n,).
-        theta (np.ndarray): Boozer poloidal angle [rad], shape (n,).
-        zeta (np.ndarray): Boozer toroidal angle [rad], shape (n,).
+        s (np.ndarray): normalized toroidal flux, shape ``(n,)``.
+        theta (np.ndarray): Boozer poloidal angle [rad], shape ``(n,)``.
+        zeta (np.ndarray): Boozer toroidal angle [rad], shape ``(n,)``.
 
     Returns:
-        np.ndarray: the positions [m], shape (n, 3). Inputs of any other shape also
-        work; the positions then have one more axis, of length 3.
+        np.ndarray: the positions [m], shape ``(n, 3)``. Other input shapes work too, with one
+        more axis of length 3 in the result.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -153,26 +146,24 @@ def _interpolate_boozer(values, n_s, nfp, weights, theta, zeta, block=4096):
 
 
 def read_trajectories(f, config):
-    """Read the true orbits of one stellarator configuration of a trajectory file.
+    """Read all orbits of one configuration of a trajectory file.
 
-    ``z`` holds the embedded states of the orbits (see ``embed_state``), shape
-    (n_orbits, 1000, 5): row k is the sample k * DT after the first. A lost orbit's rows
-    after its last regular sample are NaN; its final sample, at its loss time, falls
-    between rows and is not in ``z``. ``n_valid`` is the number of filled rows of each
-    orbit, shape (n_orbits,); orbits with ``n_valid = 0`` were lost before their first
-    sample. ``t_loss`` is the loss time of each orbit [s], NaN if confined, shape
-    (n_orbits,).
+    The orbits are put on a common time axis and embedded with ``embed_state``:
+    ``z[i, k]`` is the state of orbit ``i``, :math:`k` µs after its first sample. A lost
+    orbit's rows are NaN after its last sample. ``n_valid`` is the number of samples of each
+    orbit in ``z``, and ``t_loss`` is the time each orbit was lost [s], or NaN if it stays
+    confined. Orbits with ``n_valid == 0`` were lost before their first sample.
 
     Args:
-        f (h5py.File): an open trajectory file, e.g. ``h5py.File(path, "r")``.
-        config (int or str): the configuration, by its index in the file or its uuid.
+        f (h5py.File): an open trajectory file.
+        config (int or str): the configuration, by its row in the file or its ``uuid``.
 
     Returns:
-        dict: **"z", "n_valid", "t_loss"**, the embedded orbits, the number of filled rows
-        of each, and their loss times.
+        dict: **z, n_valid, t_loss**, of shapes ``(n_orbits, 1000, 5)``, ``(n_orbits,)`` and
+        ``(n_orbits,)``.
 
     Raises:
-        KeyError: if a uuid is given that is not in the file.
+        KeyError: if no configuration in the file has this ``uuid``.
     """
     i = _config_index(f, config)
     c0, c1 = f["config_offsets"][i], f["config_offsets"][i + 1]
@@ -192,38 +183,36 @@ def read_trajectories(f, config):
 
 
 def trajectory_metrics(paths, predictions):
-    """Evaluate trajectory predictions against the true orbits using the metrics of the paper.
+    r"""Score trajectory predictions with the metrics of the paper.
 
-    For each predicted stellarator configuration, the predicted states and loss times of
-    its orbits are compared with the truth, and over all of them the function computes the
-    nRMSE at lead times 10, 100 and 999 us (``nrmse``), the mean absolute error of the
-    loss fraction (``loss_fraction_mae``), and the Wasserstein-1 distance of the
+    For every orbit, a model predicts the state 10, 100 and 999 µs after its first sample,
+    and the time the particle is lost. Over all predicted configurations, the function
+    computes the nRMSE of the states at each lead time (``nrmse``), the mean absolute error
+    of the loss fraction (``loss_fraction_mae``), and the Wasserstein-1 distance of the
     confinement times (``confinement_time_w1``). Orbits lost before their first sample are
-    not scored. The benchmark scores every configuration of the test files;
-    ``n_configurations`` in the result says how many were scored.
+    not scored.
 
-    As in the paper, a predicted particle is lost at the first time its predicted s >= 0.98,
-    and after a predicted loss its predicted state is held at the loss state.
+    As in the paper, a predicted particle is lost the first time its predicted
+    :math:`s \ge 0.98`, and its predicted state is held at the loss state afterwards.
 
     Args:
-        paths (list of str): trajectory files holding the predicted configurations, usually
-            ``data.list_files(data_dir, "trajectory", "test")``.
-        predictions (dict): maps the uuid of each predicted configuration to a tuple
-            (z, t_loss), with one row per orbit, in the order of ``read_trajectories``.
-            z (np.ndarray) holds the predicted embedded states at lead times 10, 100 and
-            999 us, shape (n_orbits, 3, 5). t_loss (np.ndarray) holds the predicted loss
-            times [s], measured like the data from the start of the simulation (the first
-            sample is at t = 1 us), NaN for particles predicted to stay confined, shape
-            (n_orbits,). Rows of orbits lost before their first sample are ignored.
+        paths (list of str): the trajectory files holding the predicted configurations,
+            usually ``data.list_files(data_dir, "trajectory", "test")``.
+        predictions (dict): maps the ``uuid`` of each configuration to a tuple
+            ``(z, t_loss)``, with one row per orbit in the order of ``read_trajectories``:
+            the predicted embedded states at the three lead times, shape
+            ``(n_orbits, 3, 5)``, and the predicted loss times [s], NaN for particles that
+            stay confined, shape ``(n_orbits,)``. Loss times count from the start of the
+            simulation, as in the data.
 
     Returns:
-        dict: **"nrmse_10_microsec", "nrmse_100_microsec", "nrmse_999_microsec",
-        "loss_fraction_mae", "confinement_time_w1_microsec", "n_configurations"**, the
-        metrics above and the number of configurations scored.
+        dict: **nrmse_10_microsec, nrmse_100_microsec, nrmse_999_microsec,
+        loss_fraction_mae, confinement_time_w1_microsec, n_configurations**, the metrics
+        above and the number of configurations scored.
 
     Raises:
         KeyError: if a predicted configuration is not in the files.
-        ValueError: if a prediction has the wrong shape, or contains inf, or NaN states.
+        ValueError: if a prediction has the wrong shape, or contains inf or NaN states.
     """
     z_pred, z_true, t_pred, t_true, in_files = [], [], [], [], set()
     for path in paths:
@@ -252,7 +241,7 @@ def trajectory_metrics(paths, predictions):
 def nrmse(z_pred, z_true):
     r"""Normalized root-mean-square error of predicted states, averaged over configurations.
 
-    For the channel groups :math:`g` of the embedded state: :math:`x`, :math:`y`,
+    For the channel groups :math:`g` of the embedded state, :math:`x`, :math:`y`,
     :math:`(\cos\varphi, \sin\varphi)` and :math:`\lambda`, with frozen training-set RMS
     :math:`\sigma_g`,
 
@@ -262,17 +251,17 @@ def nrmse(z_pred, z_true):
         \left( \frac{1}{n_{d,\tau}} \sum_i \left\|\hat z_{i,g}(\tau) - z_{i,g}(\tau)\right\|^2 \right)^{1/2},
 
     where :math:`i` runs over the :math:`n_{d,\tau}` particles of configuration :math:`d`
-    still confined in the truth at :math:`\tau`, and :math:`d` over the :math:`D`
-    configurations with any.
+    that are still confined at :math:`\tau`, and :math:`d` over the :math:`D` configurations
+    with any.
 
     Args:
-        z_pred (list of np.ndarray): per configuration, the predicted embedded states of its
-            particles at the lead times, shape (n_d, n_tau, 5).
-        z_true (list of np.ndarray): per configuration, the true states, of the same
-            shapes; NaN where the particle is no longer confined.
+        z_pred (list of np.ndarray): per configuration, the predicted embedded states at the
+            lead times, shape ``(n_d, n_tau, 5)``.
+        z_true (list of np.ndarray): per configuration, the true states, of the same shapes;
+            NaN where the particle is no longer confined.
 
     Returns:
-        np.ndarray: the nRMSE at each lead time, shape (n_tau,).
+        np.ndarray: the nRMSE at each lead time, shape ``(n_tau,)``.
 
     Raises:
         ValueError: if a predicted state contains NaN or inf.
@@ -300,9 +289,10 @@ def loss_fraction_mae(t_loss_pred, t_loss_true):
         \text{MAE} = \frac{1}{D} \sum_d \left|\hat f_d - f_d\right|.
 
     Args:
-        t_loss_pred (list of np.ndarray): per configuration, the predicted loss times of its
-            particles [s], NaN if confined, shape (n_d,).
-        t_loss_true (list of np.ndarray): per configuration, the true loss times, of the same shapes.
+        t_loss_pred (list of np.ndarray): per configuration, the predicted loss times [s],
+            NaN if confined, shape ``(n_d,)``.
+        t_loss_true (list of np.ndarray): per configuration, the true loss times [s], of the
+            same shapes.
 
     Returns:
         float: the MAE.
@@ -317,21 +307,22 @@ def loss_fraction_mae(t_loss_pred, t_loss_true):
 def confinement_time_w1(t_loss_pred, t_loss_true):
     r"""Wasserstein-1 distance of predicted and true confinement times, averaged over configurations.
 
-    With :math:`T = \min(t_\text{loss}, 1\text{ ms})` the confinement time of a particle,
-    and :math:`T_{d,(i)}` the :math:`i`-th smallest of the :math:`n_d` confinement times
-    of configuration :math:`d`,
+    With :math:`T = \min(t_\text{loss}, 1\text{ ms})` the confinement time of a particle, and
+    :math:`T_{d,(i)}` the :math:`i`-th smallest of the :math:`n_d` confinement times of
+    configuration :math:`d`,
 
     .. math::
 
         W_1 = \frac{1}{D} \sum_d \frac{1}{n_d} \sum_i \left|\hat T_{d,(i)} - T_{d,(i)}\right|.
 
     Args:
-        t_loss_pred (list of np.ndarray): per configuration, the predicted loss times of its
-            particles [s], NaN if confined, shape (n_d,).
-        t_loss_true (list of np.ndarray): per configuration, the true loss times, of the same shapes.
+        t_loss_pred (list of np.ndarray): per configuration, the predicted loss times [s],
+            NaN if confined, shape ``(n_d,)``.
+        t_loss_true (list of np.ndarray): per configuration, the true loss times [s], of the
+            same shapes.
 
     Returns:
-        float: W1 [us].
+        float: :math:`W_1` [µs].
 
     Raises:
         ValueError: if a loss time is infinite.

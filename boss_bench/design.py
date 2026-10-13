@@ -1,11 +1,4 @@
-"""Inverse-design benchmark: score a set of evaluated designs.
-
-Each design is evaluated as in the paper: its boundary is rescaled to ARIES-CS size,
-minor radius 1.7 m and volume-averaged field 5.86 T, and its VMEC equilibrium is
-computed. Its mirror ratio is max ``|B|`` / min ``|B|`` over a 15 x 41 x 41 grid in
-(s, theta, phi), with s from 1e-4 to 1. Its loss fraction is that of 5000 alpha
-particles born on s = 0.1, traced for 0.1 s.
-"""
+"""Inverse-design benchmark: score a set of evaluated designs."""
 
 import numpy as np
 
@@ -15,9 +8,14 @@ from ._checks import require_finite
 def design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, aspect_target):
     r"""Score designs that have been evaluated with VMEC and particle tracing.
 
-    For :math:`n` designs with loss fractions :math:`f_j`, mirror ratios :math:`R_j` and
-    aspect ratios :math:`A_j`, and targets :math:`R^*_j` and :math:`A^*_j`, the scores in
-    percent are
+    Each design is evaluated as in the paper: its boundary is rescaled to ARIES-CS size
+    (minor radius 1.7 m, volume-averaged field 5.86 T) and its VMEC equilibrium is computed.
+    Its mirror ratio is :math:`\max |B| / \min |B|` on a 15 × 41 × 41 grid in
+    :math:`(s, \theta, \phi)`, and its loss fraction is that of 5,000 alpha particles born on
+    :math:`s = 0.1`, traced for 0.1 s.
+
+    For :math:`n` designs with loss fractions :math:`f_j`, mirror ratios :math:`R_j`, aspect
+    ratios :math:`A_j`, and targets :math:`R^*_j` and :math:`A^*_j`, the scores in percent are
 
     .. math::
 
@@ -27,21 +25,17 @@ def design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, asp
 
         \text{aspect error} = 100\, \operatorname{median}_j \frac{|A_j - A^*_j|}{A^*_j}.
 
-    They are returned as "low_loss_rate_10" and "low_loss_rate_15" (c = 0.10 and 0.15),
-    "mirror_constraint" and "mirror_constraint_1.1" (k = 1 and 1.1), and
-    "aspect_error_median".
-
     Args:
-        loss_fraction (array_like): traced loss fraction of the particles born on s = 0.1,
-            one value per design, shape (n,).
-        mirror_ratio (array_like): mirror ratio, one value per design, shape (n,).
-        mirror_target (array_like): target mirror ratio, one value per design, shape (n,).
-        aspect_ratio (array_like): aspect ratio, one value per design, shape (n,).
-        aspect_target (array_like): target aspect ratio, one value per design, shape (n,).
+        loss_fraction (array_like): loss fraction of each design, shape ``(n,)``.
+        mirror_ratio (array_like): mirror ratio of each design, shape ``(n,)``.
+        mirror_target (array_like): target mirror ratio of each design, shape ``(n,)``.
+        aspect_ratio (array_like): aspect ratio of each design, shape ``(n,)``.
+        aspect_target (array_like): target aspect ratio of each design, shape ``(n,)``.
 
     Returns:
-        dict: **"low_loss_rate_10", "low_loss_rate_15", "mirror_constraint",
-        "mirror_constraint_1.1", "aspect_error_median"**, the scores above, in percent.
+        dict: **low_loss_rate_10, low_loss_rate_15, mirror_constraint, mirror_constraint_1.1,
+        aspect_error_median**, the scores above, for :math:`c = 0.10, 0.15` and
+        :math:`k = 1, 1.1`.
 
     Raises:
         ValueError: if an input contains NaN or inf.

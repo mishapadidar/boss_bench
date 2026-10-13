@@ -1,13 +1,4 @@
-"""Heat-flux benchmark: predict where lost alpha particles strike the plasma boundary.
-
-A sample is one stellarator configuration and one birth surface ``s0``. For each sample,
-a model predicts the loss fraction and the strike points of the lost particles: the
-Boozer angles (zeta, theta) where they reach the boundary, and their energies. A particle
-lost at time tau carries energy ``3.5 MeV * exp(-2 tau / t_max)``.
-
-Predictions may use any field of a configuration except the outcomes of the particle
-tracing: ``confinement_time``, ``s_end``, ``theta_end``, ``zeta_end`` and ``vpar_end``.
-"""
+"""Heat-flux benchmark: predict where lost alpha particles strike the plasma boundary."""
 
 import h5py
 import numpy as np
@@ -26,17 +17,17 @@ BOOZER_FIELDS = {"R": "R_boozer", "Z": "Z_boozer", "nu": "nu_boozer"}  # boundar
 
 
 def lost_particles(record, s0):
-    """The true strike points and energies of the lost particles born on one surface.
+    r"""The strike points and energies of the lost particles born on one surface.
 
-    For the k particles born on s0 that are lost, ``zeta`` and ``theta`` are the Boozer
-    angles where they strike the boundary, in [0, 2 pi) [rad], and ``energy`` their
-    energies [MeV], each of shape (k,). ``n_launched`` is the number of particles born
-    on s0.
+    For the :math:`k` lost particles born on ``s0``, ``zeta`` and ``theta`` are the Boozer
+    angles where they strike the boundary, in :math:`[0, 2\pi)` [rad], and ``energy`` is
+    their energy [MeV], each of shape ``(k,)``. A particle lost at time :math:`t_\text{loss}`
+    carries :math:`E = 3.5\,\text{MeV}\; e^{-2 t_\text{loss} / t_\text{max}}`. ``n_launched``
+    is the number of particles born on ``s0``.
 
     Args:
-        record (dict): the configuration's fields, from ``data.load_record`` on a
-            confinement file; at least ``confinement_time``, ``t_max``, ``s_init``,
-            ``zeta_end`` and ``theta_end``.
+        record (dict): the configuration's fields from ``data.load_record``, including
+            ``confinement_time``, ``t_max``, ``s_init``, ``zeta_end`` and ``theta_end``.
         s0 (float): the birth surface.
 
     Returns:
@@ -44,7 +35,7 @@ def lost_particles(record, s0):
         the number of particles launched.
 
     Raises:
-        ValueError: if the confinement times or the lost particles' strike points contain NaN or inf.
+        ValueError: if the confinement times or the strike points contain NaN or inf.
     """
     ct, t_max = record["confinement_time"], record["t_max"]
     born = np.isclose(record["s_init"], s0)
@@ -59,30 +50,31 @@ def lost_particles(record, s0):
 def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
     r"""The heat flux on the plasma boundary, binned over one field period.
 
-    The strike points of all :math:`n_\text{fp}` field periods are folded into one and
-    binned on a grid of resolution x resolution bins in :math:`(\zeta, \theta)`. Bin
+    The strike points of all :math:`n_\text{fp}` field periods are folded into one and binned
+    on a grid of ``resolution`` × ``resolution`` bins in :math:`(\zeta, \theta)`. Bin
     :math:`b`, of boundary area :math:`A_b`, receives
 
     .. math::
 
         Q_b = \frac{1}{N\, n_\text{fp}\, A_b} \sum_{i \in b} E_i,
 
-    where :math:`N` is the number of particles launched. :math:`Q` is in MeV / m^2 per
-    launched particle; multiply by a birth rate [1/s] and 1.602e-13 J/MeV for W/m^2.
-    It is indexed (zeta bin, theta bin), with zeta over [0, 2 pi / nfp) and theta over
-    [0, 2 pi).
+    where :math:`N` is the number of particles launched. Rows are
+    :math:`\zeta \in [0, 2\pi / n_\text{fp})` and columns :math:`\theta \in [0, 2\pi)`. To
+    get W/m², multiply :math:`Q` by a birth rate [1/s] and by
+    :math:`1.602 \times 10^{-13}` J/MeV.
 
     Args:
-        zeta (np.ndarray): Boozer toroidal angles of the strike points [rad], shape (k,).
-        theta (np.ndarray): Boozer poloidal angles of the strike points [rad], shape (k,).
-        energy (np.ndarray): energies of the strike points [MeV], shape (k,).
-        n_launched (int): number of particles launched.
-        record (dict): the configuration's fields, from ``data.load_record``; at least
+        zeta (np.ndarray): Boozer toroidal angles of the strike points [rad], shape ``(k,)``.
+        theta (np.ndarray): Boozer poloidal angles of the strike points [rad], shape ``(k,)``.
+        energy (np.ndarray): energies of the strike points [MeV], shape ``(k,)``.
+        n_launched (int): the number of particles launched.
+        record (dict): the configuration's fields from ``data.load_record``, including
             ``R_boozer``, ``Z_boozer``, ``nu_boozer``, ``s1d`` and ``nfp``.
-        resolution (int): number of bins per angle.
+        resolution (int): the number of bins per angle.
 
     Returns:
-        np.ndarray: **Q**, the heat flux, shape (resolution, resolution).
+        np.ndarray: **Q**, the heat flux [MeV/m² per launched particle], shape
+        ``(resolution, resolution)``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -95,29 +87,30 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
 
 
 def heat_flux_metrics(paths, predictions):
-    """Evaluate heat-flux predictions against the truth using the metrics of the paper.
+    """Score heat-flux predictions with the metrics of the paper.
 
-    Each predicted sample is compared with the true lost particles by the heat-flux error
-    on 16 x 16 and 32 x 32 grids (``heat_flux_error``), the energy distance of the strike
-    points (``energy_distance``), and the absolute error of the loss fraction. Over the
-    samples, the function reports the median energy distance (over the samples with at
-    least 10 lost particles), the median and mean heat-flux errors, and the median and
-    mean absolute error of the loss fraction. The benchmark scores every sample of the test
-    files; ``n_samples`` in the result says how many were scored. Only the fields needed
-    are read from disk.
+    A sample is one configuration and one birth surface ``s0``. Each predicted sample is
+    compared with the truth by the heat-flux error on 16 × 16 and 32 × 32 grids
+    (``heat_flux_error``), the energy distance of the strike points (``energy_distance``),
+    and the absolute error of the loss fraction. Over all samples, the function reports the
+    median energy distance (over samples with at least 10 lost particles), the median and
+    mean heat-flux errors, and the median and mean absolute error of the loss fraction. Only
+    the fields it needs are read from disk.
+
+    Predictions may use any field of a configuration except the outcomes of the particle
+    tracing: ``confinement_time``, ``s_end``, ``theta_end``, ``zeta_end`` and ``vpar_end``.
 
     Args:
-        paths (list of str): confinement files holding the predicted samples, usually
+        paths (list of str): the confinement files holding the predicted samples, usually
             ``data.list_files(data_dir, "confinement", "test")``.
-        predictions (dict): maps the (uuid, s0) of each predicted sample to a tuple
-            (zeta, theta, energy, loss_fraction): the Boozer angles [rad] and energies [MeV]
-            of any number of predicted strike points (np.ndarray, shape (k,) each), and the
-            predicted loss fraction (float).
+        predictions (dict): maps ``(uuid, s0)`` of each sample to the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
+            angles [rad] and energies [MeV] of any number of predicted strike points, and the
+            predicted loss fraction.
 
     Returns:
-        dict: **"ED_median", "HF_16_median", "HF_16_mean", "HF_32_median", "HF_32_mean",
-        "loss_fraction_median_abs_error", "loss_fraction_mean_abs_error", "n_samples"**,
-        the statistics above and the number of samples scored.
+        dict: **ED_median, HF_16_median, HF_16_mean, HF_32_median, HF_32_mean,
+        loss_fraction_median_abs_error, loss_fraction_mean_abs_error, n_samples**, the
+        metrics above and the number of samples scored.
 
     Raises:
         KeyError: if a predicted sample is not in the files.
@@ -143,27 +136,28 @@ def heat_flux_error(prediction, record, s0, resolution=32):
     r"""The heat-flux error of a prediction for one sample.
 
     With :math:`Q` and :math:`\hat Q` the true and predicted heat flux from
-    ``binned_heat_flux`` on a grid of :math:`m \times m` bins of areas :math:`A_b`, and
-    relative to a uniform loss of every particle at the birth energy
-    :math:`E_\alpha = 3.5` MeV over the boundary area :math:`S`,
+    ``binned_heat_flux`` on :math:`m \times m` bins of areas :math:`A_b`, relative to a
+    uniform loss of every particle at the birth energy :math:`E_\alpha = 3.5` MeV over the
+    boundary area :math:`S`,
 
     .. math::
 
         \mathrm{HF}_m^2 = \frac{n_\text{fp} \sum_b A_b \left(\hat Q_b - Q_b\right)^2}{E_\alpha^2 / S}.
 
-    The predicted strike points are scaled so that their total is the predicted loss fraction.
+    The predicted strike points are scaled so that their total is the predicted loss
+    fraction.
 
     Args:
-        prediction (tuple): (zeta, theta, energy, loss_fraction), the Boozer angles [rad]
-            and energies [MeV] of any number of predicted strike points (np.ndarray each),
-            and the predicted loss fraction (float).
-        record (dict): the configuration's fields, from ``data.load_record`` on a
-            confinement file; at least those read by ``lost_particles`` and ``binned_heat_flux``.
+        prediction (tuple): the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
+            angles [rad] and energies [MeV] of any number of predicted strike points, and the
+            predicted loss fraction.
+        record (dict): the configuration's fields from ``data.load_record`` on a confinement
+            file.
         s0 (float): the birth surface.
-        resolution (int): the number of bins per angle, m.
+        resolution (int): the number of bins per angle, :math:`m`.
 
     Returns:
-        float: HF_m.
+        float: :math:`\mathrm{HF}_m`.
 
     Raises:
         ValueError: if a prediction contains NaN or inf.
@@ -188,14 +182,15 @@ def energy_distance(prediction, record, s0):
     with at least 10 lost particles.
 
     Args:
-        prediction (tuple): (zeta, theta, energy, loss_fraction), as in ``heat_flux_error``;
-            only the angles are used.
-        record (dict): the configuration's fields, from ``data.load_record`` on a
-            confinement file; at least those read by ``lost_particles`` and ``binned_heat_flux``.
+        prediction (tuple): the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
+            angles [rad] and energies [MeV] of any number of predicted strike points, and the
+            predicted loss fraction. Only the angles are used.
+        record (dict): the configuration's fields from ``data.load_record`` on a confinement
+            file.
         s0 (float): the birth surface.
 
     Returns:
-        float: ED, or NaN if fewer than 10 particles born on s0 are lost.
+        float: :math:`\mathrm{ED}`, or NaN if fewer than 10 particles born on ``s0`` are lost.
 
     Raises:
         ValueError: if a prediction contains NaN or inf, or has no strike points while at

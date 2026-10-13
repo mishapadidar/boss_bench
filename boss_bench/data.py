@@ -1,10 +1,4 @@
-"""Find and read the BoSS HDF5 files, once they are downloaded from Globus.
-
-There are two kinds of files. Confinement files hold stellarator configurations and the
-outcomes of 15000 traced alpha particles per configuration. Trajectory files hold
-stellarator configurations and 6000 full particle orbits per configuration. In both,
-row i of every per-configuration field belongs to configuration i.
-"""
+"""Find and read the BoSS data files."""
 
 import glob
 import os
@@ -19,32 +13,31 @@ def list_files(data_dir, kind="confinement", split="test"):
     """List the data files of one kind and split.
 
     Args:
-        data_dir (str): a directory containing the downloaded data files; it is searched recursively.
-        kind (str): "confinement" or "trajectory".
-        split (str): "train" or "test".
+        data_dir (str): the folder with the downloaded files; it is searched recursively.
+        kind (str): ``"confinement"`` or ``"trajectory"``.
+        split (str): ``"train"`` or ``"test"``.
 
     Returns:
-        list of str: the sorted file paths.
+        list of str: the file paths, sorted.
     """
     pattern = f"{kind}_data_{split}_split_*.hdf5"
     return sorted(glob.glob(os.path.join(data_dir, "**", pattern), recursive=True))
 
 
 def load(paths, fields):
-    """Read selected fields for every stellarator configuration from a list of data files.
+    """Read chosen fields of every configuration in a list of files.
 
-    Works on confinement and trajectory files alike, for reading non-trajectory data. For
-    loading the trajectory fields ``traj_data``, ``traj_offsets`` and ``config_offsets``,
-    see ``trajectory.read_trajectories``. Fields are returned as stored, with one row per
-    configuration: gridded fields are flattened, e.g. ``modB`` has shape (n, 15 * 41 * 41).
+    Fields are returned as stored, with one row per configuration and gridded fields
+    flattened: ``modB``, for example, has shape ``(n, 15 * 41 * 41)``. Works on confinement
+    and trajectory files; to read orbits, use ``trajectory.read_trajectories``.
 
     Args:
-        paths (list of str): file paths.
-        fields (list of str): names of the fields to read.
+        paths (list of str): the files.
+        fields (list of str): the names of the fields to read.
 
     Returns:
-        dict: maps each field name to an np.ndarray of shape (n_configurations, ...),
-        with the configurations of all files stacked in order.
+        dict: maps each field name to an array with one row per configuration, with the
+        configurations of all files stacked in order.
     """
     out = {name: [] for name in fields}
     for path in paths:
@@ -55,23 +48,23 @@ def load(paths, fields):
 
 
 def load_record(f, config, fields=None):
-    """Read the fields of one stellarator configuration.
+    """Read the fields of one configuration.
 
-    Only the requested fields are read from disk. Works on confinement and trajectory
-    files, for reading non-trajectory data.
+    Only the requested fields are read from disk, and gridded fields are returned flattened,
+    as stored. Works on confinement and trajectory files; to read orbits, use
+    ``trajectory.read_trajectories``.
 
     Args:
         f (h5py.File): an open file, e.g. ``h5py.File(path, "r")``.
-        config (int or str): the configuration, by its index in the file or its uuid.
-        fields (list of str, optional): names of the fields to read. By default every
-            per-configuration field is read.
+        config (int or str): the configuration, by its row in the file or its ``uuid``.
+        fields (list of str, optional): the names of the fields to read. By default, every
+            field of the configuration.
 
     Returns:
-        dict: maps each field name to its value for the configuration, as stored (gridded
-        fields flattened).
+        dict: maps each field name to its value for the configuration.
 
     Raises:
-        KeyError: if a uuid is given that is not in the file.
+        KeyError: if no configuration in the file has this ``uuid``.
     """
     i = _config_index(f, config)
     if fields is None:
