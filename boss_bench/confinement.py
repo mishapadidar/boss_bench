@@ -16,7 +16,8 @@ S_INITS = (0.1, 0.25, 0.5)  # birth surfaces of the traced particles
 def is_lost(confinement_time, t_max):
     r"""Flag the particles that left the plasma before the end of the simulation.
 
-    Particle :math:`i` is lost if its confinement time :math:`t_i < t_\text{max} - 10^{-14}`.
+    Particle :math:`i` is lost if its confinement time is shorter than the simulation time,
+    :math:`t_i < t_\text{max}`, up to round-off.
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
@@ -39,7 +40,7 @@ def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
 
     .. math::
 
-        f = \frac{1}{N} \sum_{i \in P} \mathbb{1}\left[t_i < t_\text{max} - 10^{-14}\right].
+        f = \frac{1}{N} \sum_{i \in P} \mathbb{1}\left[t_i < t_\text{max}\right].
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
