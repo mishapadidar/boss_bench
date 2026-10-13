@@ -38,9 +38,9 @@ The package works on local files, so download the data before using it. The data
 distributed through [Globus](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F) as HDF5 files of two kinds, each
 split into `train` and `test`:
 
-- `confinement` files hold about `3000` configurations each, with `15000` traced alpha
+- `confinement` files hold up to `3000` configurations each, with `15000` traced alpha
   particles per configuration, `5000` born on each of the surfaces `s0 = 0.1, 0.25, 0.5`.
-- `trajectory` files hold `40` configurations each, with `6000` full orbits per configuration.
+- `trajectory` files hold up to `40` configurations each, with `6000` full orbits per configuration.
 
 Open the Globus link, log in with your institution, Google or ORCID account, select the
 files and click **Download**. For large transfers, use **Transfer or Sync to...** to send

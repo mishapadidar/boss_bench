@@ -5,7 +5,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 ## Data
 
 - [ ] Upload all release files to Globus: confinement and trajectory, train and test.
-- [ ] Check the field names of the release trajectory files. `read_trajectories` and
+- [x] Check the field names of the release trajectory files. `read_trajectories` and
       `trajectory_metrics` read `uuid`, `traj_data`, `traj_offsets` and `config_offsets`.
 - [ ] Rerun `verification/check_against_benchmark.py` on a release trajectory file. So far
       trajectories are checked only on an old-format local file.
