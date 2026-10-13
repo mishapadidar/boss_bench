@@ -1,4 +1,4 @@
-from .confinement import energy_loss, is_lost, loss_fraction, normalized_energy_loss
+from .confinement import energy_loss, is_lost, loss_fraction, mean_confinement_time, normalized_energy_loss
 from .data import list_files, load, load_record
 from .design import design_metrics
 from .heat_flux import binned_heat_flux, energy_distance, heat_flux_error, heat_flux_metrics, lost_particles

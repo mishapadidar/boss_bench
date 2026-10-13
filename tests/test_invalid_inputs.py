@@ -19,7 +19,7 @@ def test_loss_quantities(bad):
         bad (float): the non-finite value.
     """
     ct, s_init = np.array([0.05, bad]), np.array([0.1, 0.1])
-    for f in (bb.loss_fraction, bb.energy_loss, bb.normalized_energy_loss):
+    for f in (bb.loss_fraction, bb.energy_loss, bb.normalized_energy_loss, bb.mean_confinement_time):
         with pytest.raises(ValueError):
             f(ct, 0.1, s_init)
 

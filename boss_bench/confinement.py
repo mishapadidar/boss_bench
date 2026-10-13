@@ -114,6 +114,35 @@ def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
     return _mean_on_surface(e, s_init, s0)
 
 
+def mean_confinement_time(confinement_time, t_max, s_init, s0=0.1):
+    r"""Mean confinement time of the particles born on one surface.
+
+    With :math:`P` the :math:`N` particles born on the surface :math:`s_0`,
+
+    .. math::
+
+        \bar t = \frac{1}{N} \sum_{i \in P} t_i,
+
+    where a confined particle counts :math:`t_i = t_\text{max}`, so :math:`\bar t` is at most
+    :math:`t_\text{max}`.
+
+    Args:
+        confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(m,)``.
+        s_init (np.ndarray): birth surfaces, the shape of ``confinement_time``.
+        s0 (float): the birth surface :math:`s_0` to average over.
+
+    Returns:
+        float or np.ndarray: the mean confinement time [s], a scalar or shape ``(m,)``.
+
+    Raises:
+        ValueError: if an input contains NaN or inf.
+    """
+    require_finite(confinement_time=confinement_time, t_max=t_max)
+    t = np.minimum(confinement_time, np.asarray(t_max)[..., None])
+    return _mean_on_surface(t, s_init, s0)
+
+
 def _mean_on_surface(values, s_init, s0):
     """Average a per-particle quantity over the particles born on one surface.
 

@@ -70,3 +70,12 @@ def test_energy_loss():
     np.testing.assert_allclose(bb.energy_loss(ct, T_MAX, s_init), (3.5 * np.exp(-2) + 3.5) / 2)
     np.testing.assert_allclose(bb.normalized_energy_loss(ct, T_MAX, s_init), 0.5)
     np.testing.assert_allclose(bb.normalized_energy_loss(ct[:1], T_MAX, s_init[:1]), 0.0, atol=1e-15)
+
+
+def test_mean_confinement_time():
+    """Confined particles count as t_max; only particles born on s0 count."""
+    ct = np.array([[0.05, T_MAX, 0.01, 0.03], [T_MAX, T_MAX, 0.02, T_MAX]])
+    s_init = np.array([[0.1, 0.1, 0.5, 0.5]] * 2)
+    t_max = np.array([T_MAX, T_MAX])
+    np.testing.assert_allclose(bb.mean_confinement_time(ct, t_max, s_init, s0=0.1), [(0.05 + T_MAX) / 2, T_MAX])
+    np.testing.assert_allclose(bb.mean_confinement_time(ct, t_max, s_init, s0=0.5), [0.02, (0.02 + T_MAX) / 2])
