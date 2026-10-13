@@ -70,10 +70,49 @@ def test_no_motion(trajectory_file):
 
 def test_loss_at_the_last_sample_counts():
     """A predicted loss at t = 1 ms counts as a loss; one after it does not."""
-    truth = {"z": np.zeros((2, 1000, 5)), "n_valid": np.array([1000, 1000]), "t_loss": np.full(2, np.nan)}
-    z = np.zeros((2, 3, 5))
-    scores = trajectory._score_configuration(truth, z, np.array([trajectory.T_MAX, 1.1e-3]))
-    assert scores["f_pred"] == 0.5
+    t_pred = np.array([trajectory.T_MAX, 1.1e-3])
+    assert bb.loss_fraction_mae([t_pred], [np.full(2, np.nan)]) == 0.5
+
+
+def test_nrmse_by_hand():
+    """One configuration, one particle, an error of size a in the x channel only:
+    nRMSE = a / (4 sigma_x) at every lead time."""
+    a = 0.2
+    z_true = np.zeros((1, 3, 5))
+    z_pred = z_true.copy()
+    z_pred[..., 0] = a
+    sigma_x = trajectory.CHANNEL_GROUPS["pol_x"][1]
+    np.testing.assert_allclose(bb.nrmse([z_pred], [z_true]), a / (4 * sigma_x))
+
+
+def test_nrmse_skips_lost_particles():
+    """A particle with no true state at a lead time is not scored there."""
+    z_true = np.zeros((2, 1, 5))
+    z_true[1] = np.nan
+    z_pred = np.zeros((2, 1, 5))
+    z_pred[1] = 0.7  # any prediction for the lost particle
+    assert bb.nrmse([z_pred], [z_true])[0] == 0
+
+
+def test_confinement_time_w1_by_hand():
+    """Sorted confinement times (100, 1000) us against (300, 1000) us: W1 = 200 / 2 = 100 us."""
+    t_pred = np.array([np.nan, 300e-6])
+    t_true = np.array([100e-6, np.nan])
+    np.testing.assert_allclose(bb.confinement_time_w1([t_pred], [t_true]), 100)
+
+
+def test_read_by_uuid(trajectory_file):
+    """A configuration can be read by its uuid as well as by its index.
+
+    Args:
+        trajectory_file: fixture, see conftest.py.
+    """
+    with h5py.File(trajectory_file, "r") as f:
+        by_index = bb.read_trajectories(f, 0)
+        by_uuid = bb.read_trajectories(f, "config-0")
+        with pytest.raises(KeyError):
+            bb.read_trajectories(f, "no-such-uuid")
+    np.testing.assert_array_equal(by_index["n_valid"], by_uuid["n_valid"])
 
 
 def test_predictions_must_fit(trajectory_file):

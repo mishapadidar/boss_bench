@@ -91,30 +91,16 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
 
 
 def heat_flux_metrics(paths, predictions):
-    r"""Score heat-flux predictions.
+    """Evaluate heat-flux predictions against the truth using the metrics of the paper.
 
-    Each predicted sample is compared with the truth. Relative to a uniform loss of every
-    particle at the birth energy :math:`E_\alpha = 3.5` MeV over the boundary area
-    :math:`S`, the heat-flux error on a grid of :math:`m \times m` bins is
-
-    .. math::
-
-        \mathrm{HF}_m^2 = \frac{n_\text{fp} \sum_b A_b \left(\hat Q_b - Q_b\right)^2}{E_\alpha^2 / S},
-
-    with :math:`Q` from ``binned_heat_flux`` and the predicted strike points scaled so that their
-    total is the predicted loss fraction. With :math:`X` and :math:`Y` the predicted and
-    true strike points as positions on the boundary, the energy distance is
-
-    .. math::
-
-        \mathrm{ED} = \left| \frac{2\,\mathbb{E}\|X - Y\| - \mathbb{E}\|X - X'\|
-        - \mathbb{E}\|Y - Y'\|}{\mathbb{E}\|Y - Y'\|} \right|^{1/2},
-
-    where the self terms average over pairs of distinct points. The reported numbers are
-    the median ED over the samples with at least 10 lost particles, the median and mean
-    HF for :math:`m = 16` and 32, and the median and mean absolute error of the loss
-    fraction. The benchmark scores every sample of the test files; ``n_samples`` in the
-    result says how many were scored. Only the fields needed are read from disk.
+    Each predicted sample is compared with the true lost particles by the heat-flux error
+    on 16 x 16 and 32 x 32 grids (``heat_flux_error``), the energy distance of the strike
+    points (``energy_distance``), and the absolute error of the loss fraction. Over the
+    samples, the function reports the median energy distance (over the samples with at
+    least 10 lost particles), the median and mean heat-flux errors, and the median and
+    mean absolute error of the loss fraction. The benchmark scores every sample of the test
+    files; ``n_samples`` in the result says how many were scored. Only the fields needed
+    are read from disk.
 
     Args:
         paths (list of str): confinement files holding the predicted samples, usually
@@ -138,15 +124,82 @@ def heat_flux_metrics(paths, predictions):
     for path in paths:
         with h5py.File(path, "r") as f:
             for record in _read_configurations(f):
-                for target in _targets(record):
-                    key = (record["uuid"], target["s_init"])
+                for s0 in S_INITS:
+                    key = (record["uuid"], s0)
                     if key in predictions:
-                        results.append(_sample_metrics(*predictions[key], target))
+                        results.append(_sample_metrics(*predictions[key], _target(record, s0)))
                         scored.add(key)
     missing = set(predictions) - scored
     if missing:
         raise KeyError(f"{len(missing)} predicted samples are not in the files, e.g. {next(iter(missing))}")
     return {**_summarize(results), "n_samples": len(results)}
+
+
+def heat_flux_error(prediction, record, s0, resolution=32):
+    r"""The heat-flux error of a prediction for one sample.
+
+    With :math:`Q` and :math:`\hat Q` the true and predicted heat flux from
+    ``binned_heat_flux`` on a grid of :math:`m \times m` bins of areas :math:`A_b`, and
+    relative to a uniform loss of every particle at the birth energy
+    :math:`E_\alpha = 3.5` MeV over the boundary area :math:`S`,
+
+    .. math::
+
+        \mathrm{HF}_m^2 = \frac{n_\text{fp} \sum_b A_b \left(\hat Q_b - Q_b\right)^2}{E_\alpha^2 / S}.
+
+    The predicted strike points are scaled so that their total is the predicted loss fraction.
+
+    Args:
+        prediction (tuple): (zeta, theta, energy, loss_fraction), the Boozer angles [rad]
+            and energies [MeV] of any number of predicted strike points (np.ndarray each),
+            and the predicted loss fraction (float).
+        record (dict): the configuration's fields, from ``data.load_record`` on a
+            confinement file; at least those read by ``lost_particles`` and ``binned_heat_flux``.
+        s0 (float): the birth surface.
+        resolution (int): the number of bins per angle, m.
+
+    Returns:
+        float: HF_m.
+
+    Raises:
+        ValueError: if a prediction contains NaN or inf.
+    """
+    zeta, theta, energy, loss_fraction = prediction
+    require_finite(zeta=zeta, theta=theta, energy=energy, loss_fraction=loss_fraction)
+    return _heat_flux_error(zeta, theta, energy, loss_fraction, _target(_with_boundary(record), s0), resolution)
+
+
+def energy_distance(prediction, record, s0):
+    r"""The energy distance between predicted and true strike points, for one sample.
+
+    With :math:`X` and :math:`Y` the predicted and true strike points as positions on the
+    boundary,
+
+    .. math::
+
+        \mathrm{ED} = \left| \frac{2\,\mathbb{E}\|X - Y\| - \mathbb{E}\|X - X'\|
+        - \mathbb{E}\|Y - Y'\|}{\mathbb{E}\|Y - Y'\|} \right|^{1/2},
+
+    where the self terms average over pairs of distinct points. It is defined for samples
+    with at least 10 lost particles.
+
+    Args:
+        prediction (tuple): (zeta, theta, energy, loss_fraction), as in ``heat_flux_error``;
+            only the angles are used.
+        record (dict): the configuration's fields, from ``data.load_record`` on a
+            confinement file; at least those read by ``lost_particles`` and ``binned_heat_flux``.
+        s0 (float): the birth surface.
+
+    Returns:
+        float: ED, or NaN if fewer than 10 particles born on s0 are lost.
+
+    Raises:
+        ValueError: if a prediction contains NaN or inf, or has no strike points while at
+            least 10 particles are lost.
+    """
+    zeta, theta, _, _ = prediction
+    require_finite(zeta=zeta, theta=theta)
+    return _energy_distance_of_sample(zeta, theta, _target(_with_boundary(record), s0))
 
 
 def _sample_metrics(zeta, theta, energy, loss_fraction, target):
@@ -157,7 +210,7 @@ def _sample_metrics(zeta, theta, energy, loss_fraction, target):
         theta (np.ndarray): Boozer poloidal angles of the predicted strike points [rad].
         energy (np.ndarray): energies of the predicted strike points [MeV].
         loss_fraction (float): the predicted loss fraction.
-        target (dict): the true sample, from ``_targets``.
+        target (dict): the true sample, from ``_target``.
 
     Returns:
         dict: "HF_16" and "HF_32"; "ED" (NaN with fewer than 10 true lost particles); and
@@ -171,14 +224,30 @@ def _sample_metrics(zeta, theta, energy, loss_fraction, target):
     out = {"loss_fraction_error": abs(loss_fraction - target["loss_fraction"])}
     for m in HF_RESOLUTIONS:
         out[f"HF_{m}"] = _heat_flux_error(zeta, theta, energy, loss_fraction, target, m)
-    out["ED"] = np.nan
-    if len(target["zeta"]) >= MIN_LOST_ED:
-        if len(zeta) == 0:
-            raise ValueError(f"the target has {len(target['zeta'])} lost particles; predict at least one strike point")
-        x_pred = _boundary_points(zeta, theta, target)
-        x_true = _boundary_points(target["zeta"], target["theta"], target)
-        out["ED"] = _energy_distance(x_pred, x_true)
+    out["ED"] = _energy_distance_of_sample(zeta, theta, target)
     return out
+
+
+def _energy_distance_of_sample(zeta, theta, target):
+    """The energy distance of predicted strike points from a target's (see ``energy_distance``).
+
+    Args:
+        zeta, theta (np.ndarray): Boozer angles of the predicted strike points [rad].
+        target (dict): the true sample, from ``_target``.
+
+    Returns:
+        float: ED, or NaN if the target has fewer than MIN_LOST_ED lost particles.
+
+    Raises:
+        ValueError: if the target has an energy distance but no strike points are predicted.
+    """
+    if len(target["zeta"]) < MIN_LOST_ED:
+        return np.nan
+    if len(zeta) == 0:
+        raise ValueError(f"the target has {len(target['zeta'])} lost particles; predict at least one strike point")
+    x_pred = _boundary_points(zeta, theta, target)
+    x_true = _boundary_points(target["zeta"], target["theta"], target)
+    return _energy_distance(x_pred, x_true)
 
 
 def _read_configurations(f):
@@ -205,23 +274,33 @@ def _read_configurations(f):
             yield {name: values[j] for name, values in block.items()}
 
 
-def _targets(record):
-    """The true samples of one configuration, one per birth surface, for scoring.
+def _with_boundary(record):
+    """Add the boundary geometry "R", "Z", "nu" to a record read with ``data.load_record``.
+
+    Args:
+        record (dict): the configuration's fields, including the Boozer fields and ``s1d``.
+
+    Returns:
+        dict: the record, with the boundary geometry on the (zeta, theta) grid of one field period.
+    """
+    return {**record, **{key: _boundary_slice(record, name) for key, name in BOOZER_FIELDS.items()}}
+
+
+def _target(record, s0):
+    """The true sample of one configuration and birth surface, for scoring.
 
     Args:
         record (dict): the fields in PARTICLE_FIELDS, and the boundary geometry "R", "Z", "nu".
+        s0 (float): the birth surface.
 
     Returns:
-        list of dict: per birth surface, the "s_init", "n_launched", true "loss_fraction",
-        the lost particles' "zeta", "theta" and "energy", and the geometry "R", "Z", "nu", "nfp".
+        dict: the "s_init", "n_launched", true "loss_fraction", the lost particles'
+        "zeta", "theta" and "energy", and the geometry "R", "Z", "nu", "nfp".
     """
-    samples = []
-    for s0 in S_INITS:
-        zeta, theta, energy, n_launched = lost_particles(record, s0)
-        samples.append({"s_init": s0, "n_launched": n_launched, "loss_fraction": len(zeta) / n_launched,
-                        "zeta": zeta, "theta": theta, "energy": energy,
-                        "R": record["R"], "Z": record["Z"], "nu": record["nu"], "nfp": int(record["nfp"])})
-    return samples
+    zeta, theta, energy, n_launched = lost_particles(record, s0)
+    return {"s_init": s0, "n_launched": n_launched, "loss_fraction": len(zeta) / n_launched,
+            "zeta": zeta, "theta": theta, "energy": energy,
+            "R": record["R"], "Z": record["Z"], "nu": record["nu"], "nfp": int(record["nfp"])}
 
 
 def _summarize(results):
@@ -260,12 +339,12 @@ def _statistic(f, results, key):
 
 
 def _heat_flux_error(zeta, theta, energy, loss_fraction, target, m):
-    """The heat-flux error HF_m of one predicted sample (see ``heat_flux_metrics``).
+    """The heat-flux error HF_m of one predicted sample (see ``heat_flux_error``).
 
     Args:
         zeta, theta, energy (np.ndarray): the predicted strike points and energies.
         loss_fraction (float): the predicted loss fraction.
-        target (dict): the true sample, from ``_targets``.
+        target (dict): the true sample, from ``_target``.
         m (int): number of bins per angle.
 
     Returns:
@@ -302,7 +381,7 @@ def _heat_flux_map(zeta, theta, energy, n_launched, nfp, area):
 
 
 def _energy_distance(x, y):
-    """Normalized energy distance between two point clouds (see ``heat_flux_metrics``).
+    """Normalized energy distance between two point clouds (see ``energy_distance``).
 
     Args:
         x (np.ndarray): predicted points, shape (n, 3).
@@ -325,7 +404,7 @@ def _boundary_points(zeta, theta, target):
 
     Args:
         zeta, theta (np.ndarray): Boozer angles [rad].
-        target (dict): a sample from ``_targets``, for the boundary geometry.
+        target (dict): a sample from ``_target``, for the boundary geometry.
 
     Returns:
         np.ndarray: positions [m], shape (n, 3).

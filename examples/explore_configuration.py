@@ -32,23 +32,15 @@ bb.plot_modB_boozer(record, s=0.5, ax=fig.add_subplot(1, 3, 2))
 bb.plot_loss_fraction_curves(record, ax=fig.add_subplot(1, 3, 3))
 fig.tight_layout()
 
-# a made-up prediction: the true strike points, shifted and blurred
+# a made-up prediction: the true strike points, shifted and blurred, with the true loss fraction
 rng = np.random.default_rng(0)
 predictions = {}
 for s0 in (0.1, 0.25, 0.5):
-    zeta, theta, energy, _ = bb.lost_particles(record, s0)
+    zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
     predictions[s0] = (zeta + 0.2 + 0.1 * rng.standard_normal(len(zeta)),
-                       theta + 0.1 * rng.standard_normal(len(zeta)), energy)
-bb.plot_strike_points(record, predictions)
+                       theta + 0.1 * rng.standard_normal(len(zeta)), energy, len(zeta) / n_launched)
 
-# true vs predicted heat flux of the particles born on s = 0.1, on the same color scale
-zeta, theta, energy, n_launched = bb.lost_particles(record, 0.1)
-q_true = bb.binned_heat_flux(zeta, theta, energy, n_launched, record)
-q_pred = bb.binned_heat_flux(*predictions[0.1], n_launched, record)
-fig, axs = plt.subplots(1, 2, figsize=(12, 4))
-bb.plot_heat_flux(q_true, nfp, ax=axs[0], vmax=q_true.max())
-bb.plot_heat_flux(q_pred, nfp, ax=axs[1], vmax=q_true.max())
-axs[0].set_title("True heat flux")
-axs[1].set_title("Predicted heat flux")
-fig.tight_layout()
+# true vs predicted strike points and heat flux, one row per birth surface
+bb.plot_strike_points(record, predictions)
+bb.plot_heat_flux(record, predictions)
 plt.show()

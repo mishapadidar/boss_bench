@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .confinement import S_INITS, is_lost
-from .heat_flux import lost_particles
+from .heat_flux import binned_heat_flux, lost_particles
 
 TRAJECTORY_CHANNELS = [  # (channel of z, title, toroidal)
     (0, r"$x = \sqrt{s}\,\cos\theta$", False),
@@ -100,80 +100,98 @@ def plot_loss_fraction_curves(record, ax=None):
 
 
 def plot_strike_points(record, predictions=None, bins=32):
-    """Strike points of the lost particles on the boundary, as points colored by energy and as a density.
+    """Where the lost particles strike the boundary: as points colored by energy, and as a density.
 
-    One row per birth surface; predictions, if given, are drawn next to the truth with the
-    same color scales.
+    One row per birth surface. The density of lost particles is their histogram over the
+    Boozer angles of the full torus, normalized to integrate to 1 [1 / rad^2]. Predictions,
+    if given, are drawn next to the truth with the same color scales.
 
     Args:
         record (dict): the configuration's fields, from ``data.load_record`` on a
             confinement file; at least those read by ``heat_flux.lost_particles``.
-        predictions (dict, optional): maps a birth surface s0 to a tuple (zeta, theta,
-            energy) of predicted strike points (np.ndarray each).
+        predictions (dict, optional): maps each birth surface s0 to a tuple (zeta, theta,
+            energy, loss_fraction), as in ``heat_flux.heat_flux_metrics``.
         bins (int): number of density bins per angle.
 
     Returns:
         matplotlib.figure.Figure: the figure.
     """
     n_cols = 2 if predictions is None else 4
-    fig, axs = plt.subplots(len(S_INITS), n_cols, figsize=(4 * n_cols, 3.6 * len(S_INITS)), squeeze=False)
+    fig, axs = plt.subplots(len(S_INITS), n_cols, figsize=(4.8 * n_cols, 3.6 * len(S_INITS)), squeeze=False)
     truths = {s0: lost_particles(record, s0)[:3] for s0 in S_INITS}
     energies = np.concatenate([energy for _, _, energy in truths.values()])
     e_min, e_max = (energies.min(), energies.max()) if len(energies) else (None, None)
-    points = None
     for i, s0 in enumerate(S_INITS):
         clouds = [("True", *truths[s0])]
         if predictions is not None:
-            clouds.append(("Predicted", *predictions[s0]))
+            clouds.append(("Predicted", *predictions[s0][:3]))
         density_max = None
         for j, (name, zeta, theta, energy) in enumerate(clouds):
             zeta, theta = np.mod(zeta, 2 * np.pi), np.mod(theta, 2 * np.pi)
             ax = axs[i, 2 * j]
             points = ax.scatter(zeta, theta, c=energy, s=0.5, alpha=0.5, cmap="jet",
                                 vmin=e_min, vmax=e_max, rasterized=True)
+            fig.colorbar(points, ax=ax, label="Energy [MeV]", fraction=0.046)
             ax.set_title(f"{name} strike points")
             density = _density(zeta, theta, bins)
             density_max = density_max or density.max() or None
             ax = axs[i, 2 * j + 1]
-            ax.imshow(density.T, origin="lower", extent=[0, 2 * np.pi, 0, 2 * np.pi],
-                      cmap="YlOrRd", vmin=0, vmax=density_max)
-            ax.set_title(f"{name} density")
+            image = ax.imshow(density.T, origin="lower", extent=[0, 2 * np.pi, 0, 2 * np.pi],
+                              cmap="YlOrRd", vmin=0, vmax=density_max)
+            fig.colorbar(image, ax=ax, label="[1 / rad$^2$]", fraction=0.046)
+            ax.set_title(f"{name} density of lost particles")
         for ax in axs[i]:
             ax.set_xlim(0, 2 * np.pi)
             ax.set_ylim(0, 2 * np.pi)
             ax.set_aspect("equal")
             ax.set_xlabel(r"Boozer $\zeta$")
             ax.set_ylabel(r"Boozer $\theta$")
-        axs[i, 0].annotate(f"$s_0$ = {s0}", xy=(-0.35, 0.5), xycoords="axes fraction",
-                           rotation=90, va="center", fontsize=12)
+        _label_row(axs[i, 0], s0)
     fig.tight_layout()
-    fig.colorbar(points, ax=axs, orientation="horizontal", fraction=0.03, pad=0.08, label="Energy [MeV]")
     return fig
 
 
-def plot_heat_flux(q, nfp, ax=None, vmax=None):
+def plot_heat_flux(record, predictions=None, resolution=32):
     """The heat flux on the boundary over one field period, from ``heat_flux.binned_heat_flux``.
 
+    One row per birth surface. Predictions, if given, are drawn next to the truth on the
+    same color scale, scaled so that their total is the predicted loss fraction, as in
+    ``heat_flux.heat_flux_metrics``.
+
     Args:
-        q (np.ndarray): the heat flux [MeV / m^2 per launched particle], shape (m, m),
-            indexed (zeta bin, theta bin).
-        nfp (int): number of field periods.
-        ax (matplotlib.axes.Axes, optional): the axis to draw on. By default a new figure is made.
-        vmax (float, optional): the top of the color scale, e.g. to compare two heat fluxes.
-            By default the maximum of q.
+        record (dict): the configuration's fields, from ``data.load_record`` on a
+            confinement file; at least those read by ``heat_flux.lost_particles`` and
+            ``heat_flux.binned_heat_flux``.
+        predictions (dict, optional): maps each birth surface s0 to a tuple (zeta, theta,
+            energy, loss_fraction), as in ``heat_flux.heat_flux_metrics``.
+        resolution (int): number of bins per angle.
 
     Returns:
-        matplotlib.axes.Axes: the axis.
+        matplotlib.figure.Figure: the figure.
     """
-    m_zeta, m_theta = q.shape
-    if ax is None:
-        ax = plt.figure(figsize=(6, 4)).add_subplot()
-    mesh = ax.pcolormesh(np.linspace(0, 2 * np.pi / nfp, m_zeta + 1), np.linspace(0, 2 * np.pi, m_theta + 1),
-                         q.T, cmap="inferno", vmin=0, vmax=vmax)
-    ax.set_xlabel(r"Boozer $\zeta$ (one field period)")
-    ax.set_ylabel(r"Boozer $\theta$")
-    ax.figure.colorbar(mesh, ax=ax, label="Heat flux [MeV / m$^2$ per particle]")
-    return ax
+    nfp = int(record["nfp"])
+    n_cols = 1 if predictions is None else 2
+    fig, axs = plt.subplots(len(S_INITS), n_cols, figsize=(5.5 * n_cols, 3.6 * len(S_INITS)), squeeze=False)
+    zeta_edges = np.linspace(0, 2 * np.pi / nfp, resolution + 1)
+    theta_edges = np.linspace(0, 2 * np.pi, resolution + 1)
+    for i, s0 in enumerate(S_INITS):
+        zeta, theta, energy, n_launched = lost_particles(record, s0)
+        fluxes = [("True", binned_heat_flux(zeta, theta, energy, n_launched, record, resolution))]
+        if predictions is not None:
+            zeta, theta, energy, loss_fraction = predictions[s0]
+            scale = loss_fraction * n_launched / len(energy) if len(energy) else 0.0
+            fluxes.append(("Predicted", scale * binned_heat_flux(zeta, theta, energy, n_launched, record, resolution)))
+        vmax = fluxes[0][1].max() or None
+        for j, (name, q) in enumerate(fluxes):
+            ax = axs[i, j]
+            mesh = ax.pcolormesh(zeta_edges, theta_edges, q.T, cmap="YlOrRd", vmin=0, vmax=vmax)
+            fig.colorbar(mesh, ax=ax, label="[MeV / m$^2$ per particle]")
+            ax.set_title(f"{name} heat flux")
+            ax.set_xlabel(r"Boozer $\zeta$ (one field period)")
+            ax.set_ylabel(r"Boozer $\theta$")
+        _label_row(axs[i, 0], s0)
+    fig.tight_layout()
+    return fig
 
 
 def plot_rollouts(z_true, z_pred=None, window_us=350, toroidal_window_us=20):
@@ -255,3 +273,13 @@ def _density(zeta, theta, bins):
     if counts.sum() == 0:
         return counts
     return counts / (counts.sum() * (2 * np.pi / bins) ** 2)
+
+
+def _label_row(ax, s0):
+    """Label a row of panels with its birth surface, to the left of its first panel.
+
+    Args:
+        ax (matplotlib.axes.Axes): the first panel of the row.
+        s0 (float): the birth surface.
+    """
+    ax.annotate(f"$s_0$ = {s0}", xy=(-0.35, 0.5), xycoords="axes fraction", rotation=90, va="center", fontsize=12)

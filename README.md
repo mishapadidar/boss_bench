@@ -59,7 +59,7 @@ import boss_bench as bb
 
 files = bb.list_files("BoSS", "confinement", "test")   # files under the download folder
 with h5py.File(files[0], "r") as f:
-    record = bb.load_record(f, 0)                       # every field of configuration 0
+    record = bb.load_record(f, 0)                       # every field of configuration 0 (or give its uuid)
 
 data = bb.load(files, ["nfp", "aspect_ratio"])          # fields stacked over files
 ```
@@ -105,6 +105,10 @@ for path in paths:
 bb.heat_flux_metrics(paths, predictions)
 ```
 
+The per-sample metrics are also available on their own, with their formulas in the
+documentation: `bb.heat_flux_error(prediction, record, s0)` and
+`bb.energy_distance(prediction, record, s0)`.
+
 **Trajectories.** For each orbit in the test files, predict from its first sample the
 state at lead times `10`, `100` and `999` us, and the loss time (`NaN` if not lost). States
 are in the embedded form of `bb.embed_state`; `bb.read_trajectories` reads the orbits.
@@ -115,6 +119,9 @@ predictions = {}  # uuid -> (z of shape (n_orbits, 3, 5), t_loss of shape (n_orb
 bb.trajectory_metrics(paths, predictions)
 ```
 
+The metrics are also available on their own, with their formulas in the documentation:
+`bb.nrmse`, `bb.loss_fraction_mae` and `bb.confinement_time_w1`.
+
 **Inverse design.** Evaluate each design with VMEC and particle tracing at ARIES-CS scale,
 then score the set:
 
@@ -124,12 +131,15 @@ bb.design_metrics(loss_fraction, mirror_ratio, mirror_target, aspect_ratio, aspe
 
 ## Plotting
 
+`predictions` is optional, and maps each birth surface `s0` to a predicted
+`(zeta, theta, energy, loss_fraction)`, drawn next to the truth.
+
 ```python
 bb.plot_device(record)                          # plasma boundary colored by |B|
 bb.plot_modB_boozer(record, s=0.5)              # |B| on a flux surface in Boozer coordinates
 bb.plot_loss_fraction_curves(record)            # fraction lost vs time, per birth surface
-bb.plot_strike_points(record, predictions)      # true (and predicted) strike points and density
-bb.plot_heat_flux(q, nfp)                       # heat flux from bb.binned_heat_flux
+bb.plot_strike_points(record, predictions)      # strike points and density of lost particles, per s0
+bb.plot_heat_flux(record, predictions)          # heat flux over one field period, per s0
 bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per channel
 ```
 

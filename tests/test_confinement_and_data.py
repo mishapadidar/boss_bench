@@ -22,13 +22,14 @@ def test_list_and_load(confinement_file):
 
 
 def test_load_record(confinement_file):
-    """A record holds one configuration, with strings decoded.
+    """A record holds one configuration, with strings decoded, found by index or uuid.
 
     Args:
         confinement_file: fixture, see conftest.py.
     """
     with h5py.File(confinement_file, "r") as f:
         record = bb.load_record(f, 1)
+        assert bb.load_record(f, "config-1", ["nfp"])["nfp"] == record["nfp"]
     assert record["uuid"] == "config-1"
     assert record["confinement_time"].shape == (12,)
 

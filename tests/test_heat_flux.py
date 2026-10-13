@@ -20,7 +20,7 @@ def torus_target(zeta, theta, energy):
         energy (np.ndarray): their energies [MeV].
 
     Returns:
-        dict: a target, as from ``heat_flux._targets``.
+        dict: a target, as from ``heat_flux._target``.
     """
     record = torus_fields()
     geometry = {key: heat_flux._boundary_slice(record, name) for key, name in heat_flux.BOOZER_FIELDS.items()}
@@ -168,10 +168,10 @@ def test_metrics_match_sample_by_sample(confinement_file):
     results = []
     with h5py.File(confinement_file, "r") as f:
         for i in range(len(f["uuid"])):
-            record = bb.load_record(f, i)
-            geometry = {key: heat_flux._boundary_slice(record, name) for key, name in heat_flux.BOOZER_FIELDS.items()}
-            for t in heat_flux._targets({**record, **geometry}):
-                results.append(heat_flux._sample_metrics(*predictions[record["uuid"], t["s_init"]], t))
+            record = heat_flux._with_boundary(bb.load_record(f, i))
+            for s0 in (0.1, 0.25, 0.5):
+                t = heat_flux._target(record, s0)
+                results.append(heat_flux._sample_metrics(*predictions[record["uuid"], s0], t))
     expected = heat_flux._summarize(results)
     summary = bb.heat_flux_metrics([confinement_file], predictions)
     for key, value in expected.items():
@@ -189,3 +189,49 @@ def test_metrics_of_some_samples(confinement_file):
     assert bb.heat_flux_metrics([confinement_file], some)["n_samples"] == 3
     with pytest.raises(KeyError):
         bb.heat_flux_metrics([confinement_file], {**some, ("no-such-uuid", 0.1): some["config-1", 0.1]})
+
+
+def many_losses_record(n_lost=200, seed=0):
+    """A torus configuration whose particles born on s = 0.1 are half lost, in a band around theta = 3.
+
+    Args:
+        n_lost (int): number of lost particles.
+        seed (int): random seed.
+
+    Returns:
+        dict: a record with the fields read by ``lost_particles`` and ``binned_heat_flux``.
+    """
+    rng = np.random.default_rng(seed)
+    n = 2 * n_lost
+    return {**torus_fields(), "t_max": T_MAX, "s_init": np.full(n, 0.1),
+            "confinement_time": np.r_[rng.uniform(1e-4, 0.05, n_lost), np.full(n_lost, T_MAX)],
+            "zeta_end": rng.uniform(0, 2 * np.pi, n), "theta_end": 3 + 0.2 * rng.standard_normal(n)}
+
+
+def test_standalone_metrics_of_the_truth():
+    """Predicting the true lost particles gives HF = 0 and ED = sqrt(2 / n_lost).
+
+    The ED value is the energy distance of a cloud with itself, whose self terms skip
+    the zero distance of each point to itself.
+    """
+    record = many_losses_record(n_lost=200)
+    zeta, theta, energy, n_launched = bb.lost_particles(record, 0.1)
+    prediction = (zeta, theta, energy, len(zeta) / n_launched)
+    assert bb.heat_flux_error(prediction, record, 0.1, resolution=16) == pytest.approx(0, abs=1e-12)
+    np.testing.assert_allclose(bb.energy_distance(prediction, record, 0.1), np.sqrt(2 / 200))
+
+
+def test_standalone_metrics_match_the_benchmark(confinement_file):
+    """heat_flux_error and energy_distance give the per-sample scores used by heat_flux_metrics,
+    and ED is NaN with fewer than 10 lost particles.
+
+    Args:
+        confinement_file: fixture, see conftest.py.
+    """
+    with h5py.File(confinement_file, "r") as f:
+        record = bb.load_record(f, 0)
+    zeta, theta, energy, n_launched = bb.lost_particles(record, 0.25)
+    prediction = (zeta + 0.4, theta, 0.5 * energy, 0.3)
+    expected = heat_flux._sample_metrics(*prediction, heat_flux._target(heat_flux._with_boundary(record), 0.25))
+    assert bb.heat_flux_error(prediction, record, 0.25, resolution=32) == pytest.approx(expected["HF_32"])
+    assert np.isnan(bb.energy_distance(prediction, record, 0.25))
