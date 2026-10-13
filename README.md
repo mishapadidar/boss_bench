@@ -33,7 +33,8 @@ pip install .
 
 ## Downloading the data
 
-The data is distributed through [Globus](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F) as HDF5 files of two kinds, each
+The package works on local files, so download the data before using it. The data is
+distributed through [Globus](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F) as HDF5 files of two kinds, each
 split into `train` and `test`:
 
 - `confinement` files hold about `3000` configurations each, with `15000` traced alpha
@@ -44,6 +45,9 @@ Open the Globus link, log in with your institution, Google or ORCID account, sel
 files and click **Download**. For large transfers, use **Transfer or Sync to...** to send
 them to your own Globus endpoint, such as a cluster or a laptop running
 [Globus Connect Personal](https://www.globus.org/globus-connect-personal).
+
+Put the downloaded files in one folder, for example `BoSS/`; any layout inside it works.
+The examples below use that folder.
 
 ## Loading the data
 
@@ -131,7 +135,8 @@ bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per
 
 ## Examples
 
-The `examples/` folder has three short scripts, each run as `python <script> DATA_DIR`:
+The `examples/` folder has three short scripts. Download the data first, then run each
+as `python <script> DATA_DIR`, where `DATA_DIR` is the folder holding the downloaded files:
 
 - `explore_configuration.py` loads a configuration and plots its shape, `|B|`, loss
   fraction curves, and true against predicted strike points and heat flux.
