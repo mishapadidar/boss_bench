@@ -85,6 +85,7 @@ def test_true_predictions(trajectory_file):
     z = np.nan_to_num(truth["z"][:, trajectory.TABLE_STEPS], nan=0.5)
     m = bb.trajectory_metrics([trajectory_file], {"config-0": (z, truth["t_loss"])})
     assert m["nrmse_10_microsec"] == m["nrmse_100_microsec"] == m["nrmse_999_microsec"] == 0
+    assert all(m[f"nrmse_{k}_microsec_{g}"] == 0 for k in (10, 100, 999) for g in trajectory.CHANNEL_GROUPS)
     assert m["loss_fraction_mae"] == 0 and m["confinement_time_w1_microsec"] == 0
     assert m["n_configurations"] == 1
 
@@ -120,6 +121,20 @@ def test_nrmse_by_hand():
     z_pred[..., 0] = a
     sigma_x = trajectory.CHANNEL_GROUPS["pol_x"][1]
     np.testing.assert_allclose(bb.nrmse([z_pred], [z_true]), a / (4 * sigma_x))
+
+
+def test_nrmse_by_group():
+    """An error in the x channel only shows up in the pol_x group; the groups average to the nRMSE."""
+    a = 0.2
+    z_true = np.zeros((1, 3, 5))
+    z_pred = z_true.copy()
+    z_pred[..., 0] = a
+    groups = bb.nrmse([z_pred], [z_true], by_group=True)
+    assert list(groups) == ["pol_x", "pol_y", "phi", "lambda"]
+    np.testing.assert_allclose(groups["pol_x"], a / trajectory.CHANNEL_GROUPS["pol_x"][1])
+    for g in ("pol_y", "phi", "lambda"):
+        np.testing.assert_array_equal(groups[g], 0)
+    np.testing.assert_allclose(np.mean(list(groups.values()), axis=0), bb.nrmse([z_pred], [z_true]))
 
 
 def test_nrmse_skips_lost_particles():

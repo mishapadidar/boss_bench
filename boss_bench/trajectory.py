@@ -192,6 +192,9 @@ def trajectory_metrics(paths, predictions):
     confinement times (``confinement_time_w1``). Orbits lost before their first sample are
     not scored.
 
+    Each nRMSE is followed by its breakdown by channel group, ``nrmse_<k>_microsec_<group>``
+    for the groups ``pol_x``, ``pol_y``, ``phi`` and ``lambda``; the nRMSE is their mean.
+
     As in the paper, a predicted particle is lost the first time its predicted
     :math:`s \ge 0.98`, and its predicted state is held at the loss state afterwards.
 
@@ -208,7 +211,8 @@ def trajectory_metrics(paths, predictions):
     Returns:
         dict: **nrmse_10_microsec, nrmse_100_microsec, nrmse_999_microsec,
         loss_fraction_mae, confinement_time_w1_microsec, n_configurations**, the metrics
-        above and the number of configurations scored.
+        above and the number of configurations scored, with the nRMSE breakdown after
+        each nRMSE.
 
     Raises:
         KeyError: if a predicted configuration is not in the files.
@@ -231,14 +235,20 @@ def trajectory_metrics(paths, predictions):
     missing = set(predictions) - in_files
     if missing:
         raise KeyError(f"{len(missing)} predicted configurations are not in the files, e.g. {next(iter(missing))}")
-    out = {f"nrmse_{k}_microsec": float(v) for k, v in zip(TABLE_STEPS, nrmse(z_pred, z_true))}
+    groups = nrmse(z_pred, z_true, by_group=True)
+    total = np.mean(list(groups.values()), axis=0)
+    out = {}
+    for j, k in enumerate(TABLE_STEPS):
+        out[f"nrmse_{k}_microsec"] = float(total[j])
+        for g, values in groups.items():  # its breakdown by channel group
+            out[f"nrmse_{k}_microsec_{g}"] = float(values[j])
     out["loss_fraction_mae"] = loss_fraction_mae(t_pred, t_true)
     out["confinement_time_w1_microsec"] = confinement_time_w1(t_pred, t_true)
     out["n_configurations"] = len(z_pred)
     return out
 
 
-def nrmse(z_pred, z_true):
+def nrmse(z_pred, z_true, by_group=False):
     r"""Normalized root-mean-square error of predicted states, averaged over configurations.
 
     For the channel groups :math:`g` of the embedded state, :math:`x`, :math:`y`,
@@ -259,9 +269,14 @@ def nrmse(z_pred, z_true):
             lead times, shape ``(n_d, n_tau, 5)``.
         z_true (list of np.ndarray): per configuration, the true states, of the same shapes;
             NaN where the particle is no longer confined.
+        by_group (bool): if True, return the nRMSE of each channel group instead of their
+            mean.
 
     Returns:
-        np.ndarray: the nRMSE at each lead time, shape ``(n_tau,)``.
+        np.ndarray or dict: the nRMSE at each lead time, shape ``(n_tau,)``. With
+        ``by_group``, a dict that maps each group, **pol_x, pol_y, phi, lambda**, to its
+        term :math:`\frac{1}{\sigma_g D} \sum_d (\dots)^{1/2}`, shape ``(n_tau,)``; their
+        mean is the nRMSE.
 
     Raises:
         ValueError: if a predicted state contains NaN or inf.
@@ -275,7 +290,8 @@ def nrmse(z_pred, z_true):
             err2 = ((zp[..., channels] - zt[..., channels]) ** 2).sum(axis=-1)
             sse = np.where(valid, err2, 0).sum(axis=0)
             rmse[g].append(np.where(n_valid > 0, np.sqrt(sse / np.maximum(n_valid, 1)), np.nan))
-    return np.mean([np.nanmean(rmse[g], axis=0) / sigma for g, (_, sigma) in CHANNEL_GROUPS.items()], axis=0)
+    per_group = {g: np.nanmean(rmse[g], axis=0) / sigma for g, (_, sigma) in CHANNEL_GROUPS.items()}
+    return per_group if by_group else np.mean(list(per_group.values()), axis=0)
 
 
 def loss_fraction_mae(t_loss_pred, t_loss_true):

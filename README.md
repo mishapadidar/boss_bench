@@ -119,8 +119,10 @@ paths = bb.list_files("BoSS", "trajectory", "test")
 bb.trajectory_metrics(paths, predictions)
 ```
 
-The metrics are also available on their own, with their formulas in the documentation:
-`bb.nrmse`, `bb.loss_fraction_mae` and `bb.confinement_time_w1`.
+Each nRMSE in the report is followed by its breakdown by channel group (`pol_x`, `pol_y`,
+`phi`, `lambda`), whose mean it is. The metrics are also available on their own, with
+their formulas in the documentation: `bb.nrmse` (with `by_group=True` for the breakdown),
+`bb.loss_fraction_mae` and `bb.confinement_time_w1`.
 
 **Inverse design.** Evaluate each design with VMEC and particle tracing at ARIES-CS scale,
 then score the set:

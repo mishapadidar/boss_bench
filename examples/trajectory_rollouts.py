@@ -40,5 +40,6 @@ bb.plot_rollouts(z_true[orbits], z_pred[orbits])
 # score the predicted states at the scored lead times (10, 100 and 999 us) and loss times
 predictions = {uuid: (np.nan_to_num(z_pred[:, TABLE_STEPS]), t_loss_pred)}
 for name, value in bb.trajectory_metrics([path], predictions).items():
-    print(f"{name:30s} {value:.4g}")
+    breakdown = name.startswith("nrmse") and not name.endswith("microsec")  # by channel group
+    print(f"{'    ' + name if breakdown else name:40s} {value:.4g}")
 plt.show()
