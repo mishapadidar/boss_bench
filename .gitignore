@@ -1,0 +1,6 @@
+verification/
+__pycache__/
+*.egg-info/
+build/
+dist/
+.DS_Store
