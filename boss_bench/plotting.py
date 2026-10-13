@@ -124,7 +124,7 @@ def plot_strike_points(record, predictions=None, bins=32):
     for i, s0 in enumerate(S_INITS):
         clouds = [("True", *truths[s0])]
         if predictions is not None:
-            clouds.append(("Predicted", *predictions[s0][:3]))
+            clouds.append(("Generated", *predictions[s0][:3]))
         density_max = None
         for j, (name, zeta, theta, energy) in enumerate(clouds):
             zeta, theta = np.mod(zeta, 2 * np.pi), np.mod(theta, 2 * np.pi)
@@ -132,7 +132,7 @@ def plot_strike_points(record, predictions=None, bins=32):
             points = ax.scatter(zeta, theta, c=energy, s=0.5, alpha=0.5, cmap="jet",
                                 vmin=e_min, vmax=e_max, rasterized=True)
             fig.colorbar(points, ax=ax, label="Energy [MeV]", fraction=0.046)
-            ax.set_title(f"{name} strike points")
+            ax.set_title(f"{name} lost particle cloud")
             density = _density(zeta, theta, bins)
             density_max = density_max or density.max() or None
             ax = axs[i, 2 * j + 1]
