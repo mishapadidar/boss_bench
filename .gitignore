@@ -5,3 +5,5 @@ build/
 dist/
 .DS_Store
 .venv/
+env*/
+venv/
