@@ -1,4 +1,9 @@
-"""Heat-flux benchmark: predict where lost alpha particles strike the plasma boundary."""
+"""Heat-flux benchmark: predict where lost alpha particles strike the plasma boundary.
+
+Quantities a model predicts, such as tracing outcomes and strike points, are passed as
+arguments. The configuration itself, its boundary geometry and true outcomes, is passed as
+``record``, the fields from ``data.load_record``.
+"""
 
 import h5py
 import numpy as np
@@ -16,7 +21,7 @@ PARTICLE_FIELDS = ("uuid", "nfp", "t_max", "s_init", "confinement_time", "zeta_e
 BOOZER_FIELDS = {"R": "R_boozer", "Z": "Z_boozer", "nu": "nu_boozer"}  # boundary geometry
 
 
-def lost_particles(record, s0):
+def lost_particles(confinement_time, t_max, s_init, zeta_end, theta_end, s0=0.1):
     r"""Compute the strike points ``(zeta, theta)`` and energies ``energy`` of the lost particles born on one surface.
 
     For the :math:`k` lost particles born on ``s0``, ``zeta`` and ``theta`` are the Boozer
@@ -26,9 +31,14 @@ def lost_particles(record, s0):
     where the slowing-down time is approximated by :math:`t_\text{slowing} \approx
     t_\text{max} = 0.1` s. ``n_launched`` is the number of particles born on ``s0``.
 
+    The inputs can be the true tracing outcomes of a record or a model's predictions of them.
+
     Args:
-        record (dict): the configuration's fields from ``data.load_record``, including
-            ``confinement_time``, ``t_max``, ``s_init``, ``zeta_end`` and ``theta_end``.
+        confinement_time (np.ndarray): confinement times [s], shape ``(n,)``.
+        t_max (float): simulation time [s].
+        s_init (np.ndarray): birth surfaces, shape ``(n,)``.
+        zeta_end (np.ndarray): final Boozer toroidal angles [rad], shape ``(n,)``.
+        theta_end (np.ndarray): final Boozer poloidal angles [rad], shape ``(n,)``.
         s0 (float): the birth surface.
 
     Returns:
@@ -38,13 +48,13 @@ def lost_particles(record, s0):
     Raises:
         ValueError: if the confinement times or the strike points contain NaN or inf.
     """
-    ct, t_max = record["confinement_time"], record["t_max"]
-    born = np.isclose(record["s_init"], s0)
-    lost = born & is_lost(ct, t_max)
-    require_finite(zeta_end=record["zeta_end"][lost], theta_end=record["theta_end"][lost])
-    zeta = np.mod(record["zeta_end"][lost], 2 * np.pi)
-    theta = np.mod(record["theta_end"][lost], 2 * np.pi)
-    energy = E_ALPHA_MEV * np.exp(-2 * ct[lost] / t_max)
+    confinement_time, zeta_end, theta_end = map(np.asarray, (confinement_time, zeta_end, theta_end))
+    born = np.isclose(s_init, s0)
+    lost = born & is_lost(confinement_time, t_max)
+    require_finite(zeta_end=zeta_end[lost], theta_end=theta_end[lost])
+    zeta = np.mod(zeta_end[lost], 2 * np.pi)
+    theta = np.mod(theta_end[lost], 2 * np.pi)
+    energy = E_ALPHA_MEV * np.exp(-2 * confinement_time[lost] / t_max)
     return zeta, theta, energy, int(born.sum())
 
 
@@ -73,8 +83,9 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
         theta (np.ndarray): Boozer poloidal angles of the strike points [rad], shape ``(k,)``.
         energy (np.ndarray): energies of the strike points [MeV], shape ``(k,)``.
         n_launched (int): the number of particles launched.
-        record (dict): the configuration's fields from ``data.load_record``, including
-            ``R_boozer``, ``Z_boozer``, ``nu_boozer``, ``s1d`` and ``nfp``.
+        record (dict): the configuration's fields from ``data.load_record``. Only the
+            boundary geometry is read from it: ``R_boozer``, ``Z_boozer``, ``nu_boozer``,
+            ``s1d`` and ``nfp``.
         resolution (int): the number of bins per angle.
 
     Returns:
@@ -305,10 +316,25 @@ def _target(record, s0):
         dict: the "s_init", "n_launched", true "loss_fraction", the lost particles'
         "zeta", "theta" and "energy", and the geometry "R", "Z", "nu", "nfp".
     """
-    zeta, theta, energy, n_launched = lost_particles(record, s0)
+    zeta, theta, energy, n_launched = _lost_particles_of(record, s0)
     return {"s_init": s0, "n_launched": n_launched, "loss_fraction": len(zeta) / n_launched,
             "zeta": zeta, "theta": theta, "energy": energy,
             "R": record["R"], "Z": record["Z"], "nu": record["nu"], "nfp": int(record["nfp"])}
+
+
+def _lost_particles_of(record, s0):
+    """Apply ``lost_particles`` to the true tracing outcomes of a record.
+
+    Args:
+        record (dict): the configuration's fields, including ``confinement_time``,
+            ``t_max``, ``s_init``, ``zeta_end`` and ``theta_end``.
+        s0 (float): the birth surface.
+
+    Returns:
+        tuple: zeta, theta, energy, n_launched, as from ``lost_particles``.
+    """
+    return lost_particles(record["confinement_time"], record["t_max"], record["s_init"],
+                          record["zeta_end"], record["theta_end"], s0)
 
 
 def _summarize(results):

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .confinement import S_INITS, is_lost
-from .heat_flux import binned_heat_flux, lost_particles
+from .heat_flux import _lost_particles_of, binned_heat_flux
 
 TRAJECTORY_CHANNELS = [  # (channel of z, title, toroidal)
     (0, r"$x = \sqrt{s}\,\cos\theta$", False),
@@ -124,7 +124,7 @@ def plot_strike_points(record, predictions=None, bins=32):
     """
     n_rows = 2 if predictions is None else 4
     fig, axs = plt.subplots(n_rows, len(S_INITS), figsize=(4.8 * len(S_INITS), 3.6 * n_rows), squeeze=False)
-    truths = {s0: lost_particles(record, s0)[:3] for s0 in S_INITS}
+    truths = {s0: _lost_particles_of(record, s0)[:3] for s0 in S_INITS}
     energies = np.concatenate([energy for _, _, energy in truths.values()])
     e_min, e_max = (energies.min(), energies.max()) if len(energies) else (None, None)
     for j, s0 in enumerate(S_INITS):
@@ -181,7 +181,7 @@ def plot_heat_flux(record, predictions=None, resolution=32):
     zeta_edges = np.linspace(0, 2 * np.pi / nfp, resolution + 1)
     theta_edges = np.linspace(0, 2 * np.pi, resolution + 1)
     for j, s0 in enumerate(S_INITS):
-        zeta, theta, energy, n_launched = lost_particles(record, s0)
+        zeta, theta, energy, n_launched = _lost_particles_of(record, s0)
         fluxes = [("True", binned_heat_flux(zeta, theta, energy, n_launched, record, resolution))]
         if predictions is not None:
             zeta, theta, energy, loss_fraction = predictions[s0]

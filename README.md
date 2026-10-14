@@ -82,8 +82,11 @@ bb.energy_loss(ct, t_max, s_init, s0=0.1)             # mean of 3.5 MeV * exp(-2
 bb.normalized_energy_loss(ct, t_max, s_init, s0=0.1)  # the same, rescaled to [0, 1]
 bb.mean_confinement_time(ct, t_max, s_init, s0=0.1)   # mean of the confinement times [s]
 
-zeta, theta, energy, n_launched = bb.lost_particles(record, s0=0.1)          # where they strike the boundary
-q = bb.binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32)  # heat flux per bin
+# where the lost particles strike the boundary, and their energies
+zeta_end, theta_end = record["zeta_end"], record["theta_end"]
+zeta, theta, energy, n_launched = bb.lost_particles(ct, t_max, s_init, zeta_end, theta_end, s0=0.1)
+# heat flux per bin; only the boundary geometry is read from the record
+q = bb.binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32)
 ```
 
 ## Benchmarks

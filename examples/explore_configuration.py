@@ -40,7 +40,9 @@ fig.tight_layout()
 rng = np.random.default_rng(0)
 predictions = {}
 for s0 in (0.1, 0.25, 0.5):
-    zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
+    zeta, theta, energy, n_launched = bb.lost_particles(
+        record["confinement_time"], record["t_max"], record["s_init"],
+        record["zeta_end"], record["theta_end"], s0)
     predictions[s0] = (zeta + 0.2 + 0.1 * rng.standard_normal(len(zeta)),
                        theta + 0.1 * rng.standard_normal(len(zeta)), energy, len(zeta) / n_launched)
 

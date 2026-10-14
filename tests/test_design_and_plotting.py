@@ -35,7 +35,9 @@ def test_plots_draw(confinement_file, trajectory_file):
         z = bb.read_trajectories(f, 0)["z"][:2]
     predictions = {}
     for s0 in (0.1, 0.25, 0.5):
-        zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
+        zeta, theta, energy, n_launched = bb.lost_particles(
+            record["confinement_time"], record["t_max"], record["s_init"],
+            record["zeta_end"], record["theta_end"], s0)
         predictions[s0] = (zeta, theta, energy, len(zeta) / n_launched)
 
     assert bb.plot_device(record) is not None

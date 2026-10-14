@@ -57,7 +57,9 @@ def true_predictions(path):
         for i in range(len(f["uuid"])):
             record = bb.load_record(f, i, PARTICLE_FIELDS)
             for s0 in (0.1, 0.25, 0.5):
-                zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
+                zeta, theta, energy, n_launched = bb.lost_particles(
+                    record["confinement_time"], record["t_max"], record["s_init"],
+                    record["zeta_end"], record["theta_end"], s0)
                 predictions[record["uuid"], s0] = (zeta, theta, energy, len(zeta) / n_launched)
     return predictions
 
@@ -71,7 +73,9 @@ def test_lost_particles(confinement_file):
     with h5py.File(confinement_file, "r") as f:
         record = bb.load_record(f, 0, PARTICLE_FIELDS)
     for s0 in (0.1, 0.25, 0.5):
-        zeta, theta, energy, n_launched = bb.lost_particles(record, s0)
+        zeta, theta, energy, n_launched = bb.lost_particles(
+            record["confinement_time"], record["t_max"], record["s_init"],
+            record["zeta_end"], record["theta_end"], s0)
         assert n_launched == 4 and len(zeta) == 2
         np.testing.assert_allclose(energy, 3.5 * np.exp(-2 * np.array([0.05, 0.001]) / T_MAX))
         assert np.all((zeta >= 0) & (zeta < 2 * np.pi) & (theta >= 0) & (theta < 2 * np.pi))
@@ -215,7 +219,9 @@ def test_standalone_metrics_of_the_truth():
     the zero distance of each point to itself.
     """
     record = many_losses_record(n_lost=200)
-    zeta, theta, energy, n_launched = bb.lost_particles(record, 0.1)
+    zeta, theta, energy, n_launched = bb.lost_particles(
+        record["confinement_time"], record["t_max"], record["s_init"],
+        record["zeta_end"], record["theta_end"], 0.1)
     prediction = (zeta, theta, energy, len(zeta) / n_launched)
     assert bb.heat_flux_error(prediction, record, 0.1, resolution=16) == pytest.approx(0, abs=1e-12)
     np.testing.assert_allclose(bb.energy_distance(prediction, record, 0.1), np.sqrt(2 / 200))
@@ -231,7 +237,9 @@ def test_standalone_metrics_match_the_benchmark(confinement_file):
     """
     with h5py.File(confinement_file, "r") as f:
         record = bb.load_record(f, 0)
-    zeta, theta, energy, n_launched = bb.lost_particles(record, 0.25)
+    zeta, theta, energy, n_launched = bb.lost_particles(
+        record["confinement_time"], record["t_max"], record["s_init"],
+        record["zeta_end"], record["theta_end"], 0.25)
     prediction = (zeta + 0.4, theta, 0.5 * energy, 0.3)
     expected = heat_flux._sample_metrics(*prediction, heat_flux._target(heat_flux._with_boundary(record), 0.25))
     assert bb.heat_flux_error(prediction, record, 0.25, resolution=32) == pytest.approx(expected["HF_32"])
