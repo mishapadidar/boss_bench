@@ -187,13 +187,15 @@ def energy_distance(prediction, record, s0):
         - \mathbb{E}\|Y - Y'\|}{\mathbb{E}\|Y - Y'\|} \right|^{1/2},
 
     where the self terms average over pairs of distinct points. It is defined for samples
-    with at least 10 lost particles.
+    with at least 10 lost particles. The energy distance compares only where the particles
+    strike, so it uses the predicted angles and ignores the energies and the loss fraction;
+    ``prediction`` is the same tuple as for ``heat_flux_error``, so one prediction can be
+    scored by both.
 
     Args:
         prediction (tuple): the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
             angles [rad] and energies [MeV] of any number of predicted strike points, arrays
-            of shape ``(k,)``, and the predicted loss fraction, a float. Only the angles are
-            used.
+            of shape ``(k,)``, and the predicted loss fraction, a float.
         record (dict): the configuration's fields from ``data.load_record`` on a confinement
             file.
         s0 (float): the birth surface.

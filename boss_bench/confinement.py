@@ -1,9 +1,4 @@
-"""Alpha-particle losses, computed over the particles born on one surface.
-
-Particle arrays have shape ``(..., n)`` for ``n`` particles, where ``...`` runs over any
-number of configurations: ``(n,)`` for one configuration, ``(m, n)`` for ``m``. ``t_max`` is
-then a scalar or has shape ``(...)``.
-"""
+"""Alpha-particle losses, computed over the particles born on one surface."""
 
 import numpy as np
 
