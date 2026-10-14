@@ -1,7 +1,8 @@
 """Alpha-particle losses, computed over the particles born on one surface.
 
-Particle arrays have shape ``(n,)`` for the ``n`` particles of one configuration, or
-``(m, n)`` for ``m`` configurations; ``t_max`` is then a scalar or has shape ``(m,)``.
+Particle arrays have shape ``(..., n)`` for ``n`` particles, where ``...`` runs over any
+number of configurations: ``(n,)`` for one configuration, ``(m, n)`` for ``m``. ``t_max`` is
+then a scalar or has shape ``(...)``.
 """
 
 import numpy as np
@@ -20,11 +21,11 @@ def is_lost(confinement_time, t_max):
     :math:`t_i < t_\text{max}`, up to round-off.
 
     Args:
-        confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
-        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(m,)``.
+        confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(...)``.
 
     Returns:
-        np.ndarray: ``True`` for the lost particles, the shape of ``confinement_time``.
+        np.ndarray: ``True`` for the lost particles, shape ``(..., n)``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -37,13 +38,13 @@ def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
     """Fraction of the particles born on one surface that are lost.
 
     Args:
-        confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
-        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(m,)``.
-        s_init (np.ndarray): birth surfaces, the shape of ``confinement_time``.
+        confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(...)``.
+        s_init (np.ndarray): birth surfaces, shape ``(..., n)``.
         s0 (float): the birth surface :math:`s_0` to average over.
 
     Returns:
-        float or np.ndarray: the loss fraction, a scalar or shape ``(m,)``.
+        float or np.ndarray: the loss fraction, shape ``(...)``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -62,13 +63,13 @@ def energy_loss(confinement_time, t_max, s_init, s0=0.1):
     particle (:math:`t_i = t_\text{max}`) counts :math:`3.5\,e^{-2}` MeV.
 
     Args:
-        confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
-        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(m,)``.
-        s_init (np.ndarray): birth surfaces, the shape of ``confinement_time``.
+        confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(...)``.
+        s_init (np.ndarray): birth surfaces, shape ``(..., n)``.
         s0 (float): the birth surface :math:`s_0` to average over.
 
     Returns:
-        float or np.ndarray: the energy loss [MeV], a scalar or shape ``(m,)``.
+        float or np.ndarray: the energy loss [MeV], shape ``(...)``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -89,13 +90,13 @@ def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
     0 if every particle is confined and 1 if every particle is lost at once.
 
     Args:
-        confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
-        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(m,)``.
-        s_init (np.ndarray): birth surfaces, the shape of ``confinement_time``.
+        confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(...)``.
+        s_init (np.ndarray): birth surfaces, shape ``(..., n)``.
         s0 (float): the birth surface :math:`s_0` to average over.
 
     Returns:
-        float or np.ndarray: the normalized energy loss, a scalar or shape ``(m,)``.
+        float or np.ndarray: the normalized energy loss, shape ``(...)``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -118,13 +119,13 @@ def mean_confinement_time(confinement_time, t_max, s_init, s0=0.1):
     :math:`t_\text{max}`.
 
     Args:
-        confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
-        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(m,)``.
-        s_init (np.ndarray): birth surfaces, the shape of ``confinement_time``.
+        confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
+        t_max (float or np.ndarray): simulation time [s], a scalar or shape ``(...)``.
+        s_init (np.ndarray): birth surfaces, shape ``(..., n)``.
         s0 (float): the birth surface :math:`s_0` to average over.
 
     Returns:
-        float or np.ndarray: the mean confinement time [s], a scalar or shape ``(m,)``.
+        float or np.ndarray: the mean confinement time [s], shape ``(...)``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -138,7 +139,7 @@ def _mean_on_surface(values, s_init, s0):
     """Average a per-particle quantity over the particles born on one surface.
 
     Args:
-        values (np.ndarray): per-particle values, shape (n,) or (m, n).
+        values (np.ndarray): per-particle values, shape ``(..., n)``.
         s_init (np.ndarray): particle birth surfaces, the shape of values.
         s0 (float): the birth surface to average over.
 
