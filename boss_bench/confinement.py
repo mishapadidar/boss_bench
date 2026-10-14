@@ -34,13 +34,7 @@ def is_lost(confinement_time, t_max):
 
 
 def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
-    r"""Fraction of the particles born on one surface that are lost.
-
-    With :math:`P` the :math:`N` particles born on the surface :math:`s_0`,
-
-    .. math::
-
-        f = \frac{1}{N} \sum_{i \in P} \mathbb{1}\left[t_i < t_\text{max}\right].
+    """Fraction of the particles born on one surface that are lost.
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
@@ -60,13 +54,12 @@ def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
 def energy_loss(confinement_time, t_max, s_init, s0=0.1):
     r"""Mean energy lost per particle born on one surface.
 
-    With :math:`P` the :math:`N` particles born on the surface :math:`s_0`,
-
     .. math::
 
-        E = \frac{1}{N} \sum_{i \in P} 3.5\,\text{MeV}\; e^{-2 t_i / t_\text{max}},
+        E = \frac{1}{N} \sum_i e^{-2 t_i / t_\text{max}} \cdot 3.5\ \text{MeV},
 
-    so a confined particle (:math:`t_i = t_\text{max}`) counts :math:`3.5\,e^{-2}` MeV.
+    where the sum runs over the :math:`N` particles born on :math:`s_0`, so a confined
+    particle (:math:`t_i = t_\text{max}`) counts :math:`3.5\,e^{-2}` MeV.
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
@@ -88,13 +81,12 @@ def energy_loss(confinement_time, t_max, s_init, s0=0.1):
 def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
     r"""The energy loss rescaled to :math:`[0, 1]`.
 
-    With :math:`P` the :math:`N` particles born on the surface :math:`s_0`,
-
     .. math::
 
-        \bar E = \frac{1}{N} \sum_{i \in P} \frac{e^{-2 t_i / t_\text{max}} - e^{-2}}{1 - e^{-2}},
+        \bar E = \frac{1}{N} \sum_i \frac{e^{-2 t_i / t_\text{max}} - e^{-2}}{1 - e^{-2}},
 
-    which is 0 if every particle is confined and 1 if every particle is lost at once.
+    where the sum runs over the :math:`N` particles born on :math:`s_0`, so :math:`\bar E` is
+    0 if every particle is confined and 1 if every particle is lost at once.
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(n,)`` or ``(m, n)``.
@@ -117,13 +109,12 @@ def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
 def mean_confinement_time(confinement_time, t_max, s_init, s0=0.1):
     r"""Mean confinement time of the particles born on one surface.
 
-    With :math:`P` the :math:`N` particles born on the surface :math:`s_0`,
-
     .. math::
 
-        \bar t = \frac{1}{N} \sum_{i \in P} t_i,
+        \bar t = \frac{1}{N} \sum_i t_i,
 
-    where a confined particle counts :math:`t_i = t_\text{max}`, so :math:`\bar t` is at most
+    where the sum runs over the :math:`N` particles born on :math:`s_0`, so a confined
+    particle counts :math:`t_i = t_\text{max}`, and :math:`\bar t` is at most
     :math:`t_\text{max}`.
 
     Args:

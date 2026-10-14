@@ -27,9 +27,11 @@ def list_files(data_dir, kind="confinement", split="test"):
 def load(paths, fields):
     """Read chosen fields of every configuration in a list of files.
 
-    Fields are returned as stored, with one row per configuration and gridded fields
-    flattened: ``modB``, for example, has shape ``(n, 15 * 41 * 41)``. Works on confinement
-    and trajectory files; to read orbits, use ``trajectory.read_trajectories``.
+    Every field can be read except the trajectory fields themselves: ``traj_data``,
+    ``traj_offsets`` and ``config_offsets``. To load trajectories, use
+    ``trajectory.read_trajectories``. Fields are returned as stored, with one row per
+    configuration and gridded fields flattened: ``modB``, for example, has shape
+    ``(n, 15 * 41 * 41)``.
 
     Args:
         paths (list of str): the files.
@@ -50,13 +52,15 @@ def load(paths, fields):
 def load_record(f, config, fields=None):
     """Read the fields of one configuration.
 
-    Only the requested fields are read from disk, and gridded fields are returned flattened,
-    as stored. Works on confinement and trajectory files; to read orbits, use
-    ``trajectory.read_trajectories``.
+    Every field can be read except the trajectory fields themselves: ``traj_data``,
+    ``traj_offsets`` and ``config_offsets``. To load trajectories, use
+    ``trajectory.read_trajectories``. Only the requested fields are read from disk, and
+    gridded fields are returned flattened, as stored.
 
     Args:
         f (h5py.File): an open file, e.g. ``h5py.File(path, "r")``.
-        config (int or str): the configuration, by its row in the file or its ``uuid``.
+        config (int or str): the row index in the file or the ``uuid`` of the
+            configuration.
         fields (list of str, optional): the names of the fields to read. By default, every
             field of the configuration.
 

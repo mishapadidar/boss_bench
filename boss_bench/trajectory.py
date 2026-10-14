@@ -25,7 +25,7 @@ CHANNEL_GROUPS = {
 
 
 def embed_state(s, theta, phi, vpar):
-    r"""The embedded form of a guiding-center state, in which models take and return states.
+    r"""Return the embedded form of a guiding-center state, in which models take and return states.
 
     .. math::
 
@@ -35,38 +35,39 @@ def embed_state(s, theta, phi, vpar):
     with :math:`v_\alpha` the speed of a 3.5 MeV alpha particle.
 
     Args:
-        s (np.ndarray): normalized toroidal flux, shape ``(n,)``.
-        theta (np.ndarray): Boozer poloidal angle [rad], shape ``(n,)``.
-        phi (np.ndarray): Boozer toroidal angle [rad], shape ``(n,)``.
-        vpar (np.ndarray): parallel velocity [m/s], shape ``(n,)``.
+        s (np.ndarray): normalized toroidal flux, any shape.
+        theta (np.ndarray): Boozer poloidal angle [rad], the shape of ``s``.
+        phi (np.ndarray): Boozer toroidal angle [rad], the shape of ``s``.
+        vpar (np.ndarray): parallel velocity [m/s], the shape of ``s``.
 
     Returns:
-        np.ndarray: the embedded states, shape ``(n, 5)``. Other input shapes work too, with
-        one more axis of length 5 in the result.
+        np.ndarray: the embedded states, shape ``(..., 5)``, where ``...`` is the shape of
+        ``s``.
     """
     r = np.sqrt(s)
     return np.stack([r * np.cos(theta), r * np.sin(theta), np.cos(phi), np.sin(phi), vpar / V_ALPHA], axis=-1)
 
 
 def load_trajectory(f, config, particle):
-    """Read one orbit of one configuration of a trajectory file.
+    """Read one trajectory of one configuration of a trajectory file.
 
-    The orbit is returned as stored: its time ``t`` [s], normalized toroidal flux ``s``,
-    Boozer angles ``theta`` and ``zeta`` [rad], and parallel velocity ``vpar`` [m/s], each of
-    shape ``(n_samples,)``. The samples are 1 µs apart, starting at :math:`t = 1` µs; a lost
-    orbit ends with one more sample, at the time it was lost.
+    The trajectory is returned as stored: its time ``t`` [s], normalized toroidal flux
+    ``s``, Boozer angles ``theta`` and ``zeta`` [rad], and parallel velocity ``vpar`` [m/s],
+    each of shape ``(n_samples,)``. The samples are 1 µs apart, starting at :math:`t = 1` µs;
+    the trajectory of a lost particle ends with one more sample, at the time it was lost.
 
     Args:
         f (h5py.File): an open trajectory file.
-        config (int or str): the configuration, by its row in the file or its ``uuid``.
-        particle (int): the orbit, by its index among the configuration's orbits.
+        config (int or str): the row index in the file or the ``uuid`` of the
+            configuration.
+        particle (int): the index of the trajectory among the configuration's trajectories.
 
     Returns:
-        dict: **t, s, theta, zeta, vpar**, the samples of the orbit.
+        dict: **t, s, theta, zeta, vpar**, the samples of the trajectory.
 
     Raises:
         KeyError: if no configuration in the file has this ``uuid``.
-        IndexError: if the configuration has no orbit with index ``particle``.
+        IndexError: if the configuration has no trajectory with index ``particle``.
     """
     i = _config_index(f, config)
     c0, c1 = f["config_offsets"][i], f["config_offsets"][i + 1]
@@ -78,7 +79,7 @@ def load_trajectory(f, config, particle):
 
 
 def to_xyz(record, s, theta, zeta):
-    r"""Cartesian positions of points given in Boozer coordinates, such as the samples of an orbit.
+    r"""Cartesian positions of points given in Boozer coordinates, such as the samples of a trajectory.
 
     :math:`R`, :math:`Z` and :math:`\nu` are interpolated from the configuration's Boozer grid,
     spectrally in the angles and with a cubic spline in :math:`\sqrt{s}`. With the cylindrical
@@ -91,13 +92,13 @@ def to_xyz(record, s, theta, zeta):
     Args:
         record (dict): the configuration's fields from ``data.load_record``, including
             ``R_boozer``, ``Z_boozer``, ``nu_boozer``, ``s1d`` and ``nfp``.
-        s (np.ndarray): normalized toroidal flux, shape ``(n,)``.
-        theta (np.ndarray): Boozer poloidal angle [rad], shape ``(n,)``.
-        zeta (np.ndarray): Boozer toroidal angle [rad], shape ``(n,)``.
+        s (np.ndarray): normalized toroidal flux, any shape.
+        theta (np.ndarray): Boozer poloidal angle [rad], the shape of ``s``.
+        zeta (np.ndarray): Boozer toroidal angle [rad], the shape of ``s``.
 
     Returns:
-        np.ndarray: the positions [m], shape ``(n, 3)``. Other input shapes work too, with one
-        more axis of length 3 in the result.
+        np.ndarray: the Cartesian positions :math:`(x, y, z)` in meters, shape ``(..., 3)``,
+        where ``...`` is the shape of ``s``.
 
     Raises:
         ValueError: if an input contains NaN or inf.
@@ -146,21 +147,23 @@ def _interpolate_boozer(values, n_s, nfp, weights, theta, zeta, block=4096):
 
 
 def read_trajectories(f, config):
-    """Read all orbits of one configuration of a trajectory file.
+    """Read all trajectories of one configuration of a trajectory file.
 
-    The orbits are put on a common time axis and embedded with ``embed_state``:
-    ``z[i, k]`` is the state of orbit ``i``, :math:`k` µs after its first sample. A lost
-    orbit's rows are NaN after its last sample. ``n_valid`` is the number of samples of each
-    orbit in ``z``, and ``t_loss`` is the time each orbit was lost [s], or NaN if it stays
-    confined. Orbits with ``n_valid == 0`` were lost before their first sample.
+    The trajectories are put on a common time axis and embedded with ``embed_state``:
+    ``z[i, k]`` is the state of trajectory ``i``, :math:`k` µs after its first sample. The
+    rows of a lost particle are NaN after its last sample. ``n_valid`` is the number of
+    samples of each trajectory in ``z``, and ``t_loss`` is the time each particle was lost
+    [s], or NaN if it stays confined. Trajectories with ``n_valid == 0`` were lost before
+    their first sample.
 
     Args:
         f (h5py.File): an open trajectory file.
-        config (int or str): the configuration, by its row in the file or its ``uuid``.
+        config (int or str): the row index in the file or the ``uuid`` of the
+            configuration.
 
     Returns:
-        dict: **z, n_valid, t_loss**, of shapes ``(n_orbits, 1000, 5)``, ``(n_orbits,)`` and
-        ``(n_orbits,)``.
+        dict: **z, n_valid, t_loss**, of shapes ``(n_trajectories, 1000, 5)``,
+        ``(n_trajectories,)`` and ``(n_trajectories,)``.
 
     Raises:
         KeyError: if no configuration in the file has this ``uuid``.
