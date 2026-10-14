@@ -32,10 +32,8 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 
 ## Package
 
-- [ ] Fill in the placeholders: `<AUTHORS>`, `<PAPER_TITLE>`, `<PAPER_URL>`, `<BIBTEX>`,
-      `<DOCUMENTATION_URL>`, `<REPOSITORY_URL>`, `<DATA_LICENSE>`, `<CONTACT>`
-      (in `README.md`, `pyproject.toml`, `CITATION.cff` and `LICENSE`).
-- [ ] Confirm the code license (currently MIT).
+- [ ] Fill in the placeholders: `<AUTHORS>`, `<PAPER_TITLE>`, `<PAPER_URL>`, `<BIBTEX>`
+      (in `README.md`, `pyproject.toml` and `CITATION.cff`).
 - [ ] Run the tests on Python 3.9 and on the newest Python.
 - [ ] Optionally, add a GitHub Actions workflow that runs the tests.
 - [ ] Publish 1.0.0 to PyPI.
