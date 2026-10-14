@@ -1,4 +1,4 @@
-"""Trajectory benchmark: predict guiding-center orbits from their first sample."""
+"""Trajectory benchmark: predict guiding-center trajectories from their first sample."""
 
 import h5py
 import numpy as np
@@ -72,7 +72,7 @@ def load_trajectory(f, config, particle):
     i = _config_index(f, config)
     c0, c1 = f["config_offsets"][i], f["config_offsets"][i + 1]
     if not 0 <= particle < c1 - c0:
-        raise IndexError(f"configuration {config} has {c1 - c0} orbits; there is no orbit {particle}")
+        raise IndexError(f"configuration {config} has {c1 - c0} trajectories; there is no trajectory {particle}")
     a, b = f["traj_offsets"][c0 + particle], f["traj_offsets"][c0 + particle + 1]
     t, s, theta, zeta, vpar = f["traj_data"][a:b].T
     return {"t": t, "s": s, "theta": theta, "zeta": zeta, "vpar": vpar}
@@ -149,12 +149,13 @@ def _interpolate_boozer(values, n_s, nfp, weights, theta, zeta, block=4096):
 def read_trajectories(f, config):
     """Read all trajectories of one configuration of a trajectory file.
 
-    The trajectories are put on a common time axis and embedded with ``embed_state``:
-    ``z[i, k]`` is the state of trajectory ``i``, :math:`k` µs after its first sample. The
-    rows of a lost particle are NaN after its last sample. ``n_valid`` is the number of
-    samples of each trajectory in ``z``, and ``t_loss`` is the time each particle was lost
-    [s], or NaN if it stays confined. Trajectories with ``n_valid == 0`` were lost before
-    their first sample.
+    The trajectories are put on a common step axis and embedded with ``embed_state``:
+    ``z[i, k]`` is the state of trajectory ``i`` at step ``k``, that is, :math:`k` µs after
+    its first sample. A lost particle stops early, so its rows after its last regular sample
+    are NaN; its final sample, at the time it was lost, falls between steps and is not in
+    ``z``. ``n_valid`` is the number of filled rows of each trajectory, and ``t_loss`` is the
+    time each particle was lost [s], or NaN if it stays confined. Trajectories with
+    ``n_valid == 0`` were lost before their first sample.
 
     Args:
         f (h5py.File): an open trajectory file.
@@ -188,15 +189,18 @@ def read_trajectories(f, config):
 def trajectory_metrics(paths, predictions):
     r"""Score trajectory predictions with the metrics of the paper.
 
-    For every orbit, a model predicts the state 10, 100 and 999 µs after its first sample,
-    and the time the particle is lost. Over all predicted configurations, the function
-    computes the nRMSE of the states at each lead time (``nrmse``), the mean absolute error
-    of the loss fraction (``loss_fraction_mae``), and the Wasserstein-1 distance of the
-    confinement times (``confinement_time_w1``). Orbits lost before their first sample are
-    not scored.
+    For every trajectory, a model predicts the state 10, 100 and 999 µs after its first
+    sample, and the time the particle is lost. Over all predicted configurations, the
+    function computes the nRMSE of the states at each lead time (``nrmse``), the mean
+    absolute error of the loss fraction (``loss_fraction_mae``), and the Wasserstein-1
+    distance of the confinement times (``confinement_time_w1``). Trajectories lost before
+    their first sample are not scored.
 
-    Each nRMSE is followed by its breakdown by channel group, ``nrmse_<k>_microsec_<group>``
-    for the groups ``pol_x``, ``pol_y``, ``phi`` and ``lambda``; the nRMSE is their mean.
+    Each nRMSE is followed by its breakdown by channel group, ``nrmse_<k>_microsec_<group>``;
+    the nRMSE is the mean of the four groups. The groups are channels of the embedded state
+    (see ``embed_state``): ``pol_x`` is :math:`\sqrt{s}\cos\theta`, ``pol_y`` is
+    :math:`\sqrt{s}\sin\theta`, ``phi`` is the pair :math:`(\cos\varphi, \sin\varphi)`,
+    and ``lambda`` is :math:`v_\parallel / v_\alpha`.
 
     As in the paper, a predicted particle is lost the first time its predicted
     :math:`s \ge 0.98`, and its predicted state is held at the loss state afterwards.
@@ -205,10 +209,10 @@ def trajectory_metrics(paths, predictions):
         paths (list of str): the trajectory files holding the predicted configurations,
             usually ``data.list_files(data_dir, "trajectory", "test")``.
         predictions (dict): maps the ``uuid`` of each configuration to a tuple
-            ``(z, t_loss)``, with one row per orbit in the order of ``read_trajectories``:
+            ``(z, t_loss)``, with one row per trajectory in the order of ``read_trajectories``:
             the predicted embedded states at the three lead times, shape
-            ``(n_orbits, 3, 5)``, and the predicted loss times [s], NaN for particles that
-            stay confined, shape ``(n_orbits,)``. Loss times count from the start of the
+            ``(n_trajectories, 3, 5)``, and the predicted loss times [s], NaN for particles that
+            stay confined, shape ``(n_trajectories,)``. Loss times count from the start of the
             simulation, as in the data.
 
     Returns:
@@ -254,9 +258,10 @@ def trajectory_metrics(paths, predictions):
 def nrmse(z_pred, z_true, by_group=False):
     r"""Normalized root-mean-square error of predicted states, averaged over configurations.
 
-    For the channel groups :math:`g` of the embedded state, :math:`x`, :math:`y`,
-    :math:`(\cos\varphi, \sin\varphi)` and :math:`\lambda`, with frozen training-set RMS
-    :math:`\sigma_g`,
+    For the four channel groups :math:`g` of the embedded state, ``pol_x``
+    (:math:`\sqrt{s}\cos\theta`), ``pol_y`` (:math:`\sqrt{s}\sin\theta`), ``phi``
+    (:math:`\cos\varphi, \sin\varphi`) and ``lambda`` (:math:`v_\parallel / v_\alpha`), with
+    frozen training-set RMS :math:`\sigma_g`,
 
     .. math::
 
@@ -326,9 +331,9 @@ def loss_fraction_mae(t_loss_pred, t_loss_true):
 def confinement_time_w1(t_loss_pred, t_loss_true):
     r"""Wasserstein-1 distance of predicted and true confinement times, averaged over configurations.
 
-    With :math:`T = \min(t_\text{loss}, 1\text{ ms})` the confinement time of a particle, and
-    :math:`T_{d,(i)}` the :math:`i`-th smallest of the :math:`n_d` confinement times of
-    configuration :math:`d`,
+    With :math:`T` the confinement time of a particle, its loss time :math:`t_\text{loss}` if it
+    is lost within 1 ms and 1 ms otherwise, and :math:`T_{d,(i)}` the :math:`i`-th smallest of
+    the :math:`n_d` confinement times of configuration :math:`d`,
 
     .. math::
 

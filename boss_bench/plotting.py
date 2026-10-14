@@ -196,7 +196,7 @@ def plot_heat_flux(record, predictions=None, resolution=32):
 
 
 def plot_rollouts(z_true, z_pred=None, window_us=350, toroidal_window_us=20):
-    r"""Embedded orbits against lead time: one row per orbit, one column per channel.
+    r"""Embedded trajectories against lead time: one row per trajectory, one column per channel.
 
     The toroidal channels go around about once per sample, so they are drawn over a shorter
     window, with markers.
