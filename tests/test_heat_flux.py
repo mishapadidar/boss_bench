@@ -219,6 +219,7 @@ def test_standalone_metrics_of_the_truth():
     prediction = (zeta, theta, energy, len(zeta) / n_launched)
     assert bb.heat_flux_error(prediction, record, 0.1, resolution=16) == pytest.approx(0, abs=1e-12)
     np.testing.assert_allclose(bb.energy_distance(prediction, record, 0.1), np.sqrt(2 / 200))
+    assert bb.energy_distance((zeta, theta), record, 0.1) == bb.energy_distance(prediction, record, 0.1)
 
 
 def test_standalone_metrics_match_the_benchmark(confinement_file):
