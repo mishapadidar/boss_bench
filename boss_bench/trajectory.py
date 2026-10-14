@@ -190,11 +190,15 @@ def trajectory_metrics(paths, predictions):
     r"""Score trajectory predictions with the metrics of the paper.
 
     For every trajectory, a model predicts the state 10, 100 and 999 µs after its first
-    sample, and the time the particle is lost. Over all predicted configurations, the
-    function computes the nRMSE of the states at each lead time (``nrmse``), the mean
-    absolute error of the loss fraction (``loss_fraction_mae``), and the Wasserstein-1
-    distance of the confinement times (``confinement_time_w1``). Trajectories lost before
-    their first sample are not scored.
+    sample, and the time the particle is lost. Trajectories lost before their first sample
+    are not scored.
+
+    Over all predicted configurations, the function reports the nRMSE of the states at each
+    lead time ``nrmse_10_microsec``, ``nrmse_100_microsec`` and ``nrmse_999_microsec``
+    (``nrmse``); the mean absolute error of the loss fraction ``loss_fraction_mae``
+    (``loss_fraction_mae``); the Wasserstein-1 distance of the confinement times
+    ``confinement_time_w1_microsec`` (``confinement_time_w1``); and the number of
+    configurations scored ``n_configurations``.
 
     Each nRMSE is followed by its breakdown by channel group, ``nrmse_<k>_microsec_<group>``;
     the nRMSE is the mean of the four groups. The groups are channels of the embedded state

@@ -90,16 +90,18 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
 def heat_flux_metrics(paths, predictions):
     """Score heat-flux predictions with the metrics of the paper.
 
-    A sample is one configuration and one birth surface ``s0``. Each predicted sample is
-    compared with the truth by the heat-flux error on 16 × 16 and 32 × 32 grids
-    (``heat_flux_error``), the energy distance of the strike points (``energy_distance``),
-    and the absolute error of the loss fraction. Over all samples, the function reports the
-    median energy distance (over samples with at least 10 lost particles), the median and
-    mean heat-flux errors, and the median and mean absolute error of the loss fraction. Only
-    the fields it needs are read from disk.
+    A sample is the point cloud of strike points of the lost particles born on one surface
+    ``s0`` of one configuration, so each configuration gives three samples, one per birth
+    surface. Each predicted sample is compared with the true one by the heat-flux error on
+    16 × 16 and 32 × 32 grids (``heat_flux_error``), the energy distance between the two
+    point clouds (``energy_distance``), and the absolute error of the loss fraction.
 
-    Predictions may use any field of a configuration except the outcomes of the particle
-    tracing: ``confinement_time``, ``s_end``, ``theta_end``, ``zeta_end`` and ``vpar_end``.
+    Over all samples, the function reports the median energy distance ``ED_median`` (over
+    samples with at least 10 lost particles); the median and mean heat-flux errors
+    ``HF_16_median``, ``HF_16_mean``, ``HF_32_median`` and ``HF_32_mean``; the median and
+    mean absolute error of the loss fraction ``loss_fraction_median_abs_error`` and
+    ``loss_fraction_mean_abs_error``; and the number of samples scored ``n_samples``. Only
+    the fields it needs are read from disk.
 
     Args:
         paths (list of str): the confinement files holding the predicted samples, usually
