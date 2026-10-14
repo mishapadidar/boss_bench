@@ -35,7 +35,7 @@ def is_lost(confinement_time, t_max):
 
 
 def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
-    """Fraction of the particles born on one surface that are lost.
+    """Compute the fraction of the particles born on one surface that are lost.
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
@@ -53,7 +53,7 @@ def loss_fraction(confinement_time, t_max, s_init, s0=0.1):
 
 
 def energy_loss(confinement_time, t_max, s_init, s0=0.1):
-    r"""Mean energy lost per particle born on one surface.
+    r"""Compute the mean energy lost per particle born on one surface.
 
     .. math::
 
@@ -80,7 +80,7 @@ def energy_loss(confinement_time, t_max, s_init, s0=0.1):
 
 
 def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
-    r"""The energy loss rescaled to :math:`[0, 1]`.
+    r"""Compute the energy loss, rescaled to :math:`[0, 1]`.
 
     .. math::
 
@@ -108,7 +108,7 @@ def normalized_energy_loss(confinement_time, t_max, s_init, s0=0.1):
 
 
 def mean_confinement_time(confinement_time, t_max, s_init, s0=0.1):
-    r"""Mean confinement time of the particles born on one surface.
+    r"""Compute the mean confinement time of the particles born on one surface.
 
     .. math::
 

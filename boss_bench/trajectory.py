@@ -79,7 +79,7 @@ def load_trajectory(f, config, particle):
 
 
 def to_xyz(record, s, theta, zeta):
-    r"""Cartesian positions of points given in Boozer coordinates, such as the samples of a trajectory.
+    r"""Compute the Cartesian positions of points given in Boozer coordinates, such as the samples of a trajectory.
 
     :math:`R`, :math:`Z` and :math:`\nu` are interpolated from the configuration's Boozer grid,
     spectrally in the angles and with a cubic spline in :math:`\sqrt{s}`. With the cylindrical
@@ -256,7 +256,7 @@ def trajectory_metrics(paths, predictions):
 
 
 def nrmse(z_pred, z_true, by_group=False):
-    r"""Normalized root-mean-square error of predicted states, averaged over configurations.
+    r"""Compute the normalized root-mean-square error of predicted states, averaged over configurations.
 
     For the four channel groups :math:`g` of the embedded state, ``pol_x``
     (:math:`\sqrt{s}\cos\theta`), ``pol_y`` (:math:`\sqrt{s}\sin\theta`), ``phi``
@@ -303,7 +303,7 @@ def nrmse(z_pred, z_true, by_group=False):
 
 
 def loss_fraction_mae(t_loss_pred, t_loss_true):
-    r"""Mean absolute error of the fraction of particles lost within 1 ms, over configurations.
+    r"""Compute the mean absolute error of the fraction of particles lost within 1 ms, averaged over configurations.
 
     With :math:`f_d` the fraction of the particles of configuration :math:`d` lost by
     :math:`t = 1` ms,
@@ -329,7 +329,7 @@ def loss_fraction_mae(t_loss_pred, t_loss_true):
 
 
 def confinement_time_w1(t_loss_pred, t_loss_true):
-    r"""Wasserstein-1 distance of predicted and true confinement times, averaged over configurations.
+    r"""Compute the Wasserstein-1 distance between predicted and true confinement times, averaged over configurations.
 
     With :math:`T` the confinement time of a particle, its loss time :math:`t_\text{loss}` if it
     is lost within 1 ms and 1 ms otherwise, and :math:`T_{d,(i)}` the :math:`i`-th smallest of

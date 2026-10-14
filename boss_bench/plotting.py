@@ -43,7 +43,7 @@ def plot_device(record, ax=None):
 
 
 def plot_modB_boozer(record, s=0.5, ax=None):
-    """Contours of :math:`|B|` on a flux surface in Boozer coordinates, with field lines in black.
+    """Plot contours of :math:`|B|` on a flux surface in Boozer coordinates, with field lines in black.
 
     Args:
         record (dict): the configuration's fields from ``data.load_record``, including
@@ -73,7 +73,7 @@ def plot_modB_boozer(record, s=0.5, ax=None):
 
 
 def plot_loss_fraction_curves(record, ax=None):
-    """Fraction of particles lost by time :math:`t`, for each birth surface.
+    """Plot the fraction of particles lost by time :math:`t`, for each birth surface.
 
     Args:
         record (dict): the configuration's fields from ``data.load_record`` on a confinement
@@ -103,7 +103,7 @@ def plot_loss_fraction_curves(record, ax=None):
 
 
 def plot_strike_points(record, predictions=None, bins=32):
-    """Where the lost particles strike the boundary, as points colored by energy and as a density.
+    """Plot where the lost particles strike the boundary, as points colored by energy and as a density.
 
     One column per birth surface: the first row shows the true strike points, the second
     their density. Predictions, if given, add two more rows with the same color scales. The
@@ -114,7 +114,9 @@ def plot_strike_points(record, predictions=None, bins=32):
         record (dict): the configuration's fields from ``data.load_record`` on a confinement
             file.
         predictions (dict, optional): maps each birth surface ``s0`` to a tuple
-            ``(zeta, theta, energy, loss_fraction)``, as in ``heat_flux.heat_flux_metrics``.
+            ``(zeta, theta, energy, loss_fraction)``: the Boozer angles [rad] and energies
+            [MeV] of the predicted strike points, arrays of shape ``(k,)``, and the predicted
+            loss fraction, a float.
         bins (int): the number of density bins per angle.
 
     Returns:
@@ -155,7 +157,7 @@ def plot_strike_points(record, predictions=None, bins=32):
 
 
 def plot_heat_flux(record, predictions=None, resolution=32):
-    """The heat flux on the boundary over one field period, from ``heat_flux.binned_heat_flux``.
+    """Plot the heat flux on the boundary over one field period, from ``heat_flux.binned_heat_flux``.
 
     One column per birth surface. Predictions, if given, are drawn in a second row on the
     same color scale as the truth, scaled so that their total is the predicted loss
@@ -165,7 +167,9 @@ def plot_heat_flux(record, predictions=None, resolution=32):
         record (dict): the configuration's fields from ``data.load_record`` on a confinement
             file.
         predictions (dict, optional): maps each birth surface ``s0`` to a tuple
-            ``(zeta, theta, energy, loss_fraction)``, as in ``heat_flux.heat_flux_metrics``.
+            ``(zeta, theta, energy, loss_fraction)``: the Boozer angles [rad] and energies
+            [MeV] of the predicted strike points, arrays of shape ``(k,)``, and the predicted
+            loss fraction, a float.
         resolution (int): the number of bins per angle.
 
     Returns:
@@ -196,7 +200,7 @@ def plot_heat_flux(record, predictions=None, resolution=32):
 
 
 def plot_rollouts(z_true, z_pred=None, window_us=350, toroidal_window_us=20):
-    r"""Embedded trajectories against lead time: one row per trajectory, one column per channel.
+    r"""Plot embedded trajectories against lead time, one row per trajectory and one column per channel.
 
     The toroidal channels go around about once per sample, so they are drawn over a shorter
     window, with markers.

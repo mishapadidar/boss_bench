@@ -17,7 +17,7 @@ BOOZER_FIELDS = {"R": "R_boozer", "Z": "Z_boozer", "nu": "nu_boozer"}  # boundar
 
 
 def lost_particles(record, s0):
-    r"""The strike points and energies of the lost particles born on one surface.
+    r"""Compute the strike points and energies of the lost particles born on one surface.
 
     For the :math:`k` lost particles born on ``s0``, ``zeta`` and ``theta`` are the Boozer
     angles where they strike the boundary, in :math:`[0, 2\pi)` [rad], and ``energy`` is
@@ -48,20 +48,21 @@ def lost_particles(record, s0):
 
 
 def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
-    r"""The heat flux on the plasma boundary, binned over one field period.
+    r"""Compute the heat flux on the plasma boundary [MeV/m² per launched particle], binned over one field period.
 
     The strike points of all :math:`n_\text{fp}` field periods are folded into one and binned
-    on a grid of ``resolution`` × ``resolution`` bins in :math:`(\zeta, \theta)`. Bin
-    :math:`b`, of boundary area :math:`A_b`, receives
+    on a grid of ``resolution`` × ``resolution`` bins in :math:`(\zeta, \theta)`. The heat
+    flux in bin :math:`b`, of boundary area :math:`A_b`, is estimated as
 
     .. math::
 
         Q_b = \frac{1}{N\, n_\text{fp}\, A_b} \sum_{i \in b} E_i,
 
-    where :math:`N` is the number of particles launched. Rows are
-    :math:`\zeta \in [0, 2\pi / n_\text{fp})` and columns :math:`\theta \in [0, 2\pi)`. To
-    get W/m², multiply :math:`Q` by a birth rate [1/s] and by
-    :math:`1.602 \times 10^{-13}` J/MeV.
+    where the sum runs over the strike points in the bin, with energies :math:`E_i`, and
+    :math:`N` is the number of particles launched. Rows are
+    :math:`\zeta \in [0, 2\pi / n_\text{fp})` and columns :math:`\theta \in [0, 2\pi)`.
+    To estimate the absolute heat flux per unit time [W/m²], multiply :math:`Q` by a birth
+    rate [1/s] and by :math:`1.602 \times 10^{-13}` J/MeV.
 
     Args:
         zeta (np.ndarray): Boozer toroidal angles of the strike points [rad], shape ``(k,)``.
@@ -103,9 +104,10 @@ def heat_flux_metrics(paths, predictions):
     Args:
         paths (list of str): the confinement files holding the predicted samples, usually
             ``data.list_files(data_dir, "confinement", "test")``.
-        predictions (dict): maps ``(uuid, s0)`` of each sample to the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
-            angles [rad] and energies [MeV] of any number of predicted strike points, and the
-            predicted loss fraction.
+        predictions (dict): maps ``(uuid, s0)`` of each sample to the tuple
+            ``(zeta, theta, energy, loss_fraction)``: the Boozer angles [rad] and energies
+            [MeV] of any number of predicted strike points, arrays of shape ``(k,)``, and the
+            predicted loss fraction, a float.
 
     Returns:
         dict: **ED_median, HF_16_median, HF_16_mean, HF_32_median, HF_32_mean,
@@ -133,7 +135,7 @@ def heat_flux_metrics(paths, predictions):
 
 
 def heat_flux_error(prediction, record, s0, resolution=32):
-    r"""The heat-flux error of a prediction for one sample.
+    r"""Compute the heat-flux error of a prediction for one sample.
 
     With :math:`Q` and :math:`\hat Q` the true and predicted heat flux from
     ``binned_heat_flux`` on :math:`m \times m` bins of areas :math:`A_b`, relative to a
@@ -149,8 +151,8 @@ def heat_flux_error(prediction, record, s0, resolution=32):
 
     Args:
         prediction (tuple): the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
-            angles [rad] and energies [MeV] of any number of predicted strike points, and the
-            predicted loss fraction.
+            angles [rad] and energies [MeV] of any number of predicted strike points, arrays
+            of shape ``(k,)``, and the predicted loss fraction, a float.
         record (dict): the configuration's fields from ``data.load_record`` on a confinement
             file.
         s0 (float): the birth surface.
@@ -168,7 +170,7 @@ def heat_flux_error(prediction, record, s0, resolution=32):
 
 
 def energy_distance(prediction, record, s0):
-    r"""The energy distance between predicted and true strike points, for one sample.
+    r"""Compute the energy distance between predicted and true strike points, for one sample.
 
     With :math:`X` and :math:`Y` the predicted and true strike points as positions on the
     boundary,
@@ -183,8 +185,9 @@ def energy_distance(prediction, record, s0):
 
     Args:
         prediction (tuple): the tuple ``(zeta, theta, energy, loss_fraction)``: the Boozer
-            angles [rad] and energies [MeV] of any number of predicted strike points, and the
-            predicted loss fraction. Only the angles are used.
+            angles [rad] and energies [MeV] of any number of predicted strike points, arrays
+            of shape ``(k,)``, and the predicted loss fraction, a float. Only the angles are
+            used.
         record (dict): the configuration's fields from ``data.load_record`` on a confinement
             file.
         s0 (float): the birth surface.
