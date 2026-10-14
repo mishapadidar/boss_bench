@@ -17,13 +17,14 @@ BOOZER_FIELDS = {"R": "R_boozer", "Z": "Z_boozer", "nu": "nu_boozer"}  # boundar
 
 
 def lost_particles(record, s0):
-    r"""Compute the strike points and energies of the lost particles born on one surface.
+    r"""Compute the strike points ``(zeta, theta)`` and energies ``energy`` of the lost particles born on one surface.
 
     For the :math:`k` lost particles born on ``s0``, ``zeta`` and ``theta`` are the Boozer
     angles where they strike the boundary, in :math:`[0, 2\pi)` [rad], and ``energy`` is
     their energy [MeV], each of shape ``(k,)``. A particle lost at time :math:`t_\text{loss}`
-    carries :math:`E = 3.5\,\text{MeV}\; e^{-2 t_\text{loss} / t_\text{max}}`. ``n_launched``
-    is the number of particles born on ``s0``.
+    carries the energy :math:`E = 3.5\,\text{MeV}\; e^{-2 t_\text{loss} / t_\text{slowing}}`,
+    where the slowing-down time is approximated by :math:`t_\text{slowing} \approx
+    t_\text{max} = 0.1` s. ``n_launched`` is the number of particles born on ``s0``.
 
     Args:
         record (dict): the configuration's fields from ``data.load_record``, including
@@ -50,17 +51,20 @@ def lost_particles(record, s0):
 def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
     r"""Compute the heat flux on the plasma boundary [MeV/m² per launched particle], binned over one field period.
 
-    The strike points of all :math:`n_\text{fp}` field periods are folded into one and binned
-    on a grid of ``resolution`` × ``resolution`` bins in :math:`(\zeta, \theta)`. The heat
-    flux in bin :math:`b`, of boundary area :math:`A_b`, is estimated as
+    The strike points of all :math:`n_\text{fp}` field periods are first folded into one.
+    With :math:`m` = ``resolution``, :math:`Q_{ij}` is the heat flux in the bin
+    :math:`[\zeta_i, \zeta_{i+1}) \times [\theta_j, \theta_{j+1})`, where
+    :math:`\zeta_i = 2\pi i / (m\, n_\text{fp})` and :math:`\theta_j = 2\pi j / m` for
+    :math:`i, j = 0, \dots, m - 1`:
 
     .. math::
 
-        Q_b = \frac{1}{N\, n_\text{fp}\, A_b} \sum_{i \in b} E_i,
+        Q_{ij} = \frac{1}{N\, n_\text{fp}\, A_{ij}} \sum_k E_k,
 
-    where the sum runs over the strike points in the bin, with energies :math:`E_i`, and
-    :math:`N` is the number of particles launched. Rows are
-    :math:`\zeta \in [0, 2\pi / n_\text{fp})` and columns :math:`\theta \in [0, 2\pi)`.
+    where the sum runs over the strike points in the bin, with energies :math:`E_k`,
+    :math:`A_{ij}` is the boundary area of the bin, and :math:`N` is the number of particles
+    launched.
+
     To estimate the absolute heat flux per unit time [W/m²], multiply :math:`Q` by a birth
     rate [1/s] and by :math:`1.602 \times 10^{-13}` J/MeV.
 
@@ -74,7 +78,7 @@ def binned_heat_flux(zeta, theta, energy, n_launched, record, resolution=32):
         resolution (int): the number of bins per angle.
 
     Returns:
-        np.ndarray: **Q**, the heat flux [MeV/m² per launched particle], shape
+        np.ndarray: **Q**, the heat flux :math:`Q_{ij}` [MeV/m² per launched particle], shape
         ``(resolution, resolution)``.
 
     Raises:

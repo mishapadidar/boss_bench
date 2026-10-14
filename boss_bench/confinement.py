@@ -59,8 +59,9 @@ def energy_loss(confinement_time, t_max, s_init, s0=0.1):
 
         E = \frac{1}{N} \sum_i e^{-2 t_i / t_\text{max}} \cdot 3.5\ \text{MeV},
 
-    where the sum runs over the :math:`N` particles born on :math:`s_0`, so a confined
-    particle (:math:`t_i = t_\text{max}`) counts :math:`3.5\,e^{-2}` MeV.
+    where the sum runs over the :math:`N` particles born on :math:`s_0`, and the slowing-down
+    time in the exponent is approximated by :math:`t_\text{max} = 0.1` s. A confined particle
+    (:math:`t_i = t_\text{max}`) counts :math:`3.5\,e^{-2}` MeV.
 
     Args:
         confinement_time (np.ndarray): confinement times [s], shape ``(..., n)``.
