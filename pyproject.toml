@@ -9,7 +9,7 @@ description = "Load the BoSS stellarator database and compute the benchmark metr
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [{name = "<AUTHORS>"}]
+authors = [{name = "The BoSS Development Team"}]
 requires-python = ">=3.9"
 dependencies = ["numpy", "scipy", "h5py", "matplotlib"]
 classifiers = [
@@ -27,7 +27,7 @@ Homepage = "https://boss.flatironinstitute.org/"
 Documentation = "https://boss.flatironinstitute.org/"
 Repository = "https://github.com/mishapadidar/boss_bench"
 Issues = "https://github.com/mishapadidar/boss_bench/issues"
-Paper = "<PAPER_URL>"
+# Paper = "<PAPER_URL>"  # once the paper is out
 Data = "https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F"
 
 [tool.setuptools]

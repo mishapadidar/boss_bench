@@ -1,16 +1,17 @@
 cff-version: 1.2.0
-message: "If you use this software or the BoSS data, please cite the paper below."
+message: "If you use this software or the BoSS data, please cite it as below."
 title: "boss-bench"
 version: 1.0.0
 license: Apache-2.0
 authors:
-  - name: "<AUTHORS>"
+  - name: "The BoSS Development Team"
 url: "https://boss.flatironinstitute.org/"
 repository-code: "https://github.com/mishapadidar/boss_bench"
-preferred-citation:
-  type: article
-  title: "<PAPER_TITLE>"
-  authors:
-    - name: "<AUTHORS>"
-  year: 2026
-  url: "<PAPER_URL>"
+# Restore once the paper is out, and change the message to "please cite the paper below".
+# preferred-citation:
+#   type: article
+#   title: "<PAPER_TITLE>"
+#   authors:
+#     - name: "<AUTHORS>"
+#   year: 2026
+#   url: "<PAPER_URL>"

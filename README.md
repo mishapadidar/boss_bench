@@ -3,8 +3,8 @@
 [![PyPI](https://img.shields.io/pypi/v/boss-bench)](https://pypi.org/project/boss-bench/)
 [![Python](https://img.shields.io/pypi/pyversions/boss-bench)](https://pypi.org/project/boss-bench/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/mishapadidar/boss_bench/blob/main/LICENSE)
-[![Paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](<PAPER_URL>)
 [![Data](https://img.shields.io/badge/Globus-data-2d6db5.svg)](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
+<!-- [![Paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](<PAPER_URL>) -->
 
 The **Benchmark of Stellarator Simulations (the BoSS)** is a database of stellarator
 configurations paired with physics simulations: ideal-MHD equilibria and the
@@ -14,7 +14,8 @@ accompanies the BoSS benchmark paper.
 `boss-bench` loads the data and computes the benchmark metrics exactly as they are
 defined in the paper.
 
-[Documentation](https://boss.flatironinstitute.org/) | [Paper](<PAPER_URL>) | [Data](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
+<!-- once the paper is out, add: | [Paper](<PAPER_URL>) -->
+[Documentation](https://boss.flatironinstitute.org/) | [Data](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
 
 ## Installation
 
@@ -174,6 +175,7 @@ pip install ".[test]"
 pytest
 ```
 
+<!-- Restore once the paper is out.
 ## Citation
 
 If you use the BoSS data or this package, please cite:
@@ -181,6 +183,7 @@ If you use the BoSS data or this package, please cite:
 ```bibtex
 <BIBTEX>
 ```
+-->
 
 ## License
 
