@@ -21,7 +21,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 - [ ] Upload the model folders (`loss_fraction`, `heat_flux`, `inverse_design`) to
       https://huggingface.co/mishapadidar/boss, with the model card, the conversion
       and verification scripts, and `PROVENANCE.md`.
-- [ ] Choose the license of the weights; the model card says Apache 2.0 for now.
+- [x] Choose the license of the weights: Apache 2.0, as the code.
 - [ ] Run `examples/pretrained_models.py` and `examples/onnx_models.py` against the live
       repository, with an empty models folder.
 - [ ] Tag the Hugging Face repository at the paper version, and pin the default
