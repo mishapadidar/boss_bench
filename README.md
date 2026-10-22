@@ -4,6 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/boss-bench)](https://pypi.org/project/boss-bench/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/mishapadidar/boss_bench/blob/main/LICENSE)
 [![Data](https://img.shields.io/badge/Globus-data-2d6db5.svg)](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
+[![Models](https://img.shields.io/badge/Hugging_Face-models-ffcc4d.svg)](https://huggingface.co/mishapadidar/boss)
 <!-- [![Paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](<PAPER_URL>) -->
 
 The **Benchmark of Stellarator Simulations (the BoSS)** is a database of stellarator
@@ -15,7 +16,7 @@ accompanies the BoSS benchmark paper.
 defined in the paper.
 
 <!-- once the paper is out, add: | [Paper](<PAPER_URL>) -->
-[Documentation](https://boss.flatironinstitute.org/) | [Data](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
+[Documentation](https://boss.flatironinstitute.org/) | [Data](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F) | [Models](https://huggingface.co/mishapadidar/boss)
 
 ## Installation
 
@@ -150,9 +151,44 @@ bb.plot_heat_flux(record, predictions)          # heat flux over one field perio
 bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per channel
 ```
 
+## Pretrained models
+
+Three models from the paper are available on
+[Hugging Face](https://huggingface.co/mishapadidar/boss), in PyTorch and ONNX:
+
+- `loss_fraction`: predicts the loss fraction at `s0 = 0.1` from the boundary and
+  profiles, without VMEC. This is the surrogate used in the paper's surrogate-based
+  optimization.
+- `heat_flux`: samples the strike points of the lost particles, as in the heat-flux
+  benchmark.
+- `inverse_design`: generates plasma boundaries with a chosen loss fraction, shape,
+  field and profiles.
+
+The PyTorch models need `pip install "boss-bench[models]"`. `bb.download_model` saves a
+model in a folder, here `BoSS-models/`, and `models.load` reads it. The models read the
+BoSS fields by name, from one record or from a batch of configurations:
+
+```python
+from boss_bench import models
+
+surrogate = models.load(bb.download_model("loss_fraction", "BoSS-models"))
+surrogate.predict(record)                                    # loss fraction at s0 = 0.1
+
+heat_flux = models.load(bb.download_model("heat_flux", "BoSS-models"))
+prediction = heat_flux.sample(record, s0=0.1)                # (zeta, theta, energy, loss_fraction)
+bb.heat_flux_error(prediction, record, s0=0.1)
+
+generator = models.load(bb.download_model("inverse_design", "BoSS-models"))
+conditions = {name: record[name] for name in models.inverse_design.CONDITIONS if name != "loss_fraction"}
+boundary_xyz = generator.sample({**conditions, "loss_fraction": 0.01})   # laid out as record["boundary_xyz"]
+```
+
+To get the ONNX files as well, pass `onnx=True` to `bb.download_model`. They run without
+PyTorch, for example with ONNX Runtime; `examples/onnx_models.py` shows how.
+
 ## Examples
 
-The `examples/` folder has three short scripts. Download the data first, then run each
+The `examples/` folder has five short scripts. Download the data first, then run each
 as `python <script> DATA_DIR`, where `DATA_DIR` is a directory containing the downloaded
 files (it is searched recursively):
 
@@ -165,6 +201,13 @@ files (it is searched recursively):
 - `trajectory_rollouts.py` loads the orbits of one configuration, plots made-up
   predictions against them and scores them. `DATA_DIR` must contain at least one
   trajectory data file from the test split.
+- `pretrained_models.py` runs the three pretrained models on test configurations: it
+  scores the loss-fraction surrogate and the heat-flux model, and plots boundaries
+  generated with a lower loss fraction than a test configuration's. `DATA_DIR` must
+  contain at least one confinement data file from the test split. It takes the models
+  folder as a second argument, by default `BoSS-models`.
+- `onnx_models.py` runs the loss-fraction surrogate and the heat-flux model with ONNX
+  Runtime, without PyTorch. It takes the same arguments.
 
 ## Tests
 
