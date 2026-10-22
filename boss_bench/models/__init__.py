@@ -6,7 +6,7 @@ import urllib.request
 
 try:
     import torch  # noqa: F401
-    from safetensors.torch import load_file, save_file
+    from safetensors.torch import save_file
 except ImportError as e:
     raise ImportError('boss_bench.models needs PyTorch and safetensors: pip install "boss-bench[models]"') from e
 
@@ -23,17 +23,18 @@ def download(name, path):
 
     Three models are available:
 
-    - ``"loss_fraction"`` (``LossFractionModel``) predicts the alpha-particle loss
-      fraction of a configuration from its boundary and profiles, without VMEC.
-    - ``"heat_flux"`` (``HeatFluxModel``) samples where the lost alpha particles strike
-      the boundary, as in the heat-flux benchmark.
-    - ``"inverse_design"`` (``InverseDesignModel``) generates boundaries with a chosen
-      loss fraction, shape, field and profiles.
+    - ``"loss_fraction"`` (``LossFractionModel``), a neural surrogate which predicts the
+      loss fraction of the alpha particles born on :math:`s_0 = 0.1` from the plasma
+      boundary and profiles, without a VMEC run.
+    - ``"heat_flux"`` (``HeatFluxModel``), a flow matching model which samples the
+      locations at which lost fast ions strike the boundary.
+    - ``"inverse_design"`` (``InverseDesignModel``), a flow matching model which generates
+      plasma boundaries with a desired loss fraction, shape, field and profiles.
 
     This function downloads the model's ``config.json`` and ``model.safetensors`` into the
-    folder ``path``, which ``load`` then reads. Files already in the folder are not
-    downloaded again. The ONNX files of the models are not downloaded; get them from
-    Hugging Face directly.
+    folder ``path``, which the model's ``load`` then reads, e.g. ``HeatFluxModel.load(path)``.
+    Files already in the folder are not downloaded again. The ONNX files of the models are
+    not downloaded; get them from Hugging Face directly.
 
     Args:
         name (str): ``"loss_fraction"``, ``"heat_flux"`` or ``"inverse_design"``.
@@ -56,32 +57,8 @@ def download(name, path):
     return path
 
 
-def load(path, device="cpu"):
-    """Load a trained model from its folder.
-
-    Args:
-        path (str): the folder, holding ``config.json`` and ``model.safetensors``, e.g.
-            from ``download``.
-        device (str or torch.device): the device to put the model on.
-
-    Returns:
-        torch.nn.Module: the model, in evaluation mode: a ``LossFractionModel``,
-        ``HeatFluxModel`` or ``InverseDesignModel``.
-
-    Raises:
-        ValueError: if the folder holds an unknown kind of model.
-    """
-    with open(os.path.join(path, "config.json")) as f:
-        config = json.load(f)
-    if config["model"] not in MODELS:
-        raise ValueError(f"unknown model {config['model']!r} in {path}")
-    model = MODELS[config["model"]](**config["architecture"])
-    model.load_state_dict(load_file(os.path.join(path, "model.safetensors")))
-    return model.to(device).eval()
-
-
 def _save(model, path, **metadata):
-    """Save a model to a folder that ``load`` reads.
+    """Save a model to a folder that its ``load`` reads.
 
     Args:
         model (torch.nn.Module): the model.
@@ -91,6 +68,6 @@ def _save(model, path, **metadata):
     name = next(key for key, cls in MODELS.items() if isinstance(model, cls))
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, "config.json"), "w") as f:
-        json.dump({"model": name, "architecture": model.config, **metadata}, f, indent=2)
+        json.dump({"model": name, **metadata}, f, indent=2)
     state = {key: value.contiguous() for key, value in model.state_dict().items()}
     save_file(state, os.path.join(path, "model.safetensors"))

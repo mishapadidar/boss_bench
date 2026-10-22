@@ -156,32 +156,36 @@ bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per
 Three models from the paper are available on
 [Hugging Face](https://huggingface.co/mishapadidar/boss), in PyTorch and ONNX:
 
-- `loss_fraction`: predicts the loss fraction at `s0 = 0.1` from the boundary and
-  profiles, without VMEC. This is the surrogate used in the paper's surrogate-based
-  optimization.
-- `heat_flux`: samples the strike points of the lost particles, as in the heat-flux
-  benchmark.
-- `inverse_design`: generates plasma boundaries with a chosen loss fraction, shape,
-  field and profiles.
+- `loss_fraction`: a neural surrogate which predicts the loss fraction of the alpha
+  particles born on `s0 = 0.1` from the plasma boundary and profiles, without a VMEC run.
+- `heat_flux`: a flow matching model which samples the locations at which lost fast ions
+  strike the boundary.
+- `inverse_design`: a flow matching model which generates plasma boundaries with a
+  desired loss fraction, shape, field and profiles.
 
 The PyTorch models need `pip install "boss-bench[models]"`. `models.download` saves a
-model from Hugging Face in a folder, and `models.load` reads it. The models read the
+model from Hugging Face in a folder, and the model's `load` reads it. The models read the
 BoSS fields by name, from one record or from a batch of configurations:
 
 ```python
 from boss_bench import models
+from boss_bench.models import HeatFluxModel, InverseDesignModel, LossFractionModel
 
-surrogate = models.load(models.download("loss_fraction", "BoSS-models/loss_fraction"))
+surrogate = LossFractionModel.load(models.download("loss_fraction", "BoSS-models/loss_fraction"))
 surrogate.predict(record)                                    # loss fraction at s0 = 0.1
 
-heat_flux = models.load(models.download("heat_flux", "BoSS-models/heat_flux"))
+heat_flux = HeatFluxModel.load(models.download("heat_flux", "BoSS-models/heat_flux"))
 prediction = heat_flux.sample(record, s0=0.1)                # (zeta, theta, energy, loss_fraction)
 bb.heat_flux_error(prediction, record, s0=0.1)
 
-generator = models.load(models.download("inverse_design", "BoSS-models/inverse_design"))
+generator = InverseDesignModel.load(models.download("inverse_design", "BoSS-models/inverse_design"))
 conditions = {name: record[name] for name in models.inverse_design.CONDITIONS if name != "loss_fraction"}
 boundary_xyz = generator.sample({**conditions, "loss_fraction": 0.01})   # laid out as record["boundary_xyz"]
 ```
+
+Calling `surrogate` on tensors gives the loss fraction with gradients, for example with
+respect to the boundary. Gradients are available in PyTorch only; the ONNX files give the
+predictions without them.
 
 ### Downloading from Hugging Face directly
 
@@ -196,8 +200,8 @@ hf download mishapadidar/boss --include "*/config.json" --include "*.onnx" --loc
 hf download mishapadidar/boss --local-dir BoSS-models                                         # everything
 ```
 
-Each model then sits in its own folder, e.g. `BoSS-models/heat_flux`, which `models.load`
-reads. Single files can also be downloaded from the **Files and versions** tab of the
+Each model then sits in its own folder, e.g. `BoSS-models/heat_flux`, which the model's
+`load` reads, e.g. `HeatFluxModel.load("BoSS-models/heat_flux")`. Single files can also be downloaded from the **Files and versions** tab of the
 [repository](https://huggingface.co/mishapadidar/boss/tree/main).
 
 ## Examples

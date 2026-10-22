@@ -20,6 +20,7 @@ import numpy as np
 
 import boss_bench as bb
 from boss_bench import models
+from boss_bench.models import HeatFluxModel, InverseDesignModel, LossFractionModel
 
 data_dir = sys.argv[1] if len(sys.argv) > 1 else "BoSS"
 models_dir = sys.argv[2] if len(sys.argv) > 2 else "BoSS-models"
@@ -37,13 +38,13 @@ data = {name: np.stack([r[name] for r in records]) for name in fields}
 true_loss_fraction = bb.loss_fraction(data["confinement_time"], data["t_max"], data["s_init"], s0=0.1)
 
 # loss-fraction surrogate: no VMEC run needed
-surrogate = models.load(models.download("loss_fraction", os.path.join(models_dir, "loss_fraction")))
+surrogate = LossFractionModel.load(models.download("loss_fraction", os.path.join(models_dir, "loss_fraction")))
 predicted = surrogate.predict(data)
 print(f"loss-fraction surrogate, {n_configurations} configurations: "
       f"mean absolute error {np.mean(np.abs(predicted - true_loss_fraction)):.3f}")
 
 # heat-flux model: one sample of strike points per configuration and birth surface, scored
-heat_flux = models.load(models.download("heat_flux", os.path.join(models_dir, "heat_flux")))
+heat_flux = HeatFluxModel.load(models.download("heat_flux", os.path.join(models_dir, "heat_flux")))
 predictions = {}
 for s0 in (0.1, 0.25, 0.5):
     samples = heat_flux.sample({name: data[name][:10] for name in fields}, s0=s0, seed=0)
@@ -55,7 +56,7 @@ for name, value in scores.items():
     print(f"  {name:32s} {value:.4g}")
 
 # inverse design: three boundaries like configuration 0, but with a tenth of its loss fraction
-generator = models.load(models.download("inverse_design", os.path.join(models_dir, "inverse_design")))
+generator = InverseDesignModel.load(models.download("inverse_design", os.path.join(models_dir, "inverse_design")))
 conditions = {name: np.repeat(data[name][:1], 3, axis=0) for name in models.inverse_design.CONDITIONS
               if name != "loss_fraction"}
 conditions["loss_fraction"] = np.full(3, 0.1 * true_loss_fraction[0])

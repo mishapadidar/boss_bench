@@ -1,4 +1,4 @@
-"""Tests of the model code on small, randomly initialized models; the trained weights are not needed."""
+"""Tests of the model code on randomly initialized models; the trained weights are not needed."""
 
 import os
 
@@ -9,24 +9,19 @@ torch = pytest.importorskip("torch")
 pytest.importorskip("safetensors")
 
 from boss_bench import models  # noqa: E402
-from boss_bench.models import _common, inverse_design, loss_fraction  # noqa: E402
+from boss_bench.models import _common, heat_flux, inverse_design, loss_fraction  # noqa: E402
 from conftest import N_ANGLE, NFP, NS, torus_fields  # noqa: E402
 
 
-def small_models():
-    """One small model of each kind, randomly initialized, in evaluation mode.
+@pytest.fixture(scope="module")
+def random_models():
+    """One model of each kind, randomly initialized, in evaluation mode.
 
     Returns:
         dict: maps each model name to its model.
     """
     torch.manual_seed(0)
-    return {
-        "loss_fraction": models.LossFractionModel(conv_channels=(4, 8), surf_dim=8, profile_dim=4, scalar_dim=4,
-                                                  hidden_dim=16, n_layers=1).eval(),
-        "heat_flux": models.HeatFluxModel(embed_dim=16, hidden_dim=16, n_blocks=1).eval(),
-        "inverse_design": models.InverseDesignModel(base_ch=8, ch_mult=(1, 2), num_res_blocks=1, attn_levels=(1,),
-                                                    num_heads=2, time_dim=8).eval(),
-    }
+    return {name: cls().eval() for name, cls in models.MODELS.items()}
 
 
 def torus_record():
@@ -65,21 +60,38 @@ def test_canonicalize_theta():
         assert torch.equal(loss_fraction._canonicalize_theta(x), xyz)
 
 
-def test_loss_fraction_predict():
-    """The prediction lies in [0, 1], is the same alone and in a batch, and does not depend on the theta origin."""
-    model = small_models()["loss_fraction"]
+def test_loss_fraction_predict(random_models):
+    """The prediction is in [0, 1], the same alone, in a batch and on tensors, and independent of the theta origin.
+
+    Args:
+        random_models: fixture, the models.
+    """
+    model = random_models["loss_fraction"]
     record = torus_record()
     single = model.predict(record)
     assert isinstance(single, float) and 0 <= single <= 1
-    np.testing.assert_allclose(model.predict(stack(record, 3), batch_size=2), single, rtol=1e-6)
+    np.testing.assert_allclose(model.predict(stack(record, 3)), single, rtol=1e-6)
     xyz = record["boundary_xyz"].reshape(N_ANGLE, N_ANGLE, 3)
     shifted = dict(record, boundary_xyz=np.roll(xyz[:, ::-1], 5, axis=1).ravel())
     assert model.predict(shifted) == pytest.approx(single, rel=1e-6)
 
+    # called on tensors, the prediction is the same and has gradients
+    tensors = {name: torch.as_tensor(stack(record, 1)[name]) for name in loss_fraction.FIELDS}
+    tensors["boundary_xyz"].requires_grad_(True)
+    f = model(**tensors)
+    assert f.item() == pytest.approx(single, rel=1e-6)
+    f.sum().backward()
+    assert tensors["boundary_xyz"].grad.shape == (1, N_ANGLE * N_ANGLE * 3)
+    assert torch.all(torch.isfinite(tensors["boundary_xyz"].grad))
 
-def test_loss_fraction_invalid_inputs():
-    """Missing fields, NaN and an out-of-range nfp raise errors."""
-    model = small_models()["loss_fraction"]
+
+def test_loss_fraction_invalid_inputs(random_models):
+    """Missing fields, NaN and an out-of-range nfp raise errors.
+
+    Args:
+        random_models: fixture, the models.
+    """
+    model = random_models["loss_fraction"]
     record = torus_record()
     with pytest.raises(KeyError):
         model.predict({name: value for name, value in record.items() if name != "pressure"})
@@ -89,62 +101,80 @@ def test_loss_fraction_invalid_inputs():
         model.predict(dict(record, nfp=13))
 
 
-def test_heat_flux_sample():
-    """There are max(1, round(f N)) strike points, with angles in [0, 2 pi) and positive energies, reproducibly."""
-    model = small_models()["heat_flux"]
+def test_heat_flux_sample(random_models, monkeypatch):
+    """There are max(1, round(5000 f)) strike points, with angles in [0, 2 pi) and positive energies, reproducibly.
+
+    Args:
+        random_models: fixture, the models.
+        monkeypatch: pytest's monkeypatch fixture.
+    """
+    model = random_models["heat_flux"]
+    monkeypatch.setattr(heat_flux, "N_STEPS", 2)
     record = torus_record()
-    zeta, theta, energy, f = model.sample(record, s0=0.25, n_launched=100, n_steps=2, seed=0)
+    zeta, theta, energy, f = model.sample(record, s0=0.25, seed=0)
     assert f == pytest.approx(model.predict_loss_fraction(record, s0=0.25))
-    assert len(zeta) == len(theta) == len(energy) == max(1, round(f * 100))
+    assert len(zeta) == len(theta) == len(energy) == max(1, round(f * 5000))
     assert np.all((zeta >= 0) & (zeta < 2 * np.pi) & (theta >= 0) & (theta < 2 * np.pi) & (energy > 0))
-    again = model.sample(record, s0=0.25, n_launched=100, n_steps=2, seed=0)
+    again = model.sample(record, s0=0.25, seed=0)
     np.testing.assert_array_equal(again[0], zeta)
 
-    # integrated a few configurations at a time, the batch gives one sample per configuration
-    samples = model.sample(stack(record, 3), s0=0.25, n_launched=100, n_steps=2, seed=0, max_points=len(zeta))
+    # integrated one configuration at a time, the batch gives one sample per configuration
+    monkeypatch.setattr(heat_flux, "MAX_POINTS", len(zeta))
+    samples = model.sample(stack(record, 3), s0=0.25, seed=0)
     assert len(samples) == 3
     assert all(len(s[0]) == len(zeta) and s[3] == pytest.approx(f) for s in samples)
 
 
-def test_inverse_design_sample():
-    """A design is a boundary laid out as boundary_xyz, on the toroidal angles of one field period."""
-    model = small_models()["inverse_design"]
+def test_inverse_design_sample(random_models, monkeypatch):
+    """A design is a boundary laid out as boundary_xyz, on the toroidal angles of one field period.
+
+    Args:
+        random_models: fixture, the models.
+        monkeypatch: pytest's monkeypatch fixture.
+    """
+    model = random_models["inverse_design"]
+    monkeypatch.setattr(inverse_design, "N_STEPS", 2)
     record = torus_fields()
     xyz = record["boundary_xyz"].reshape(N_ANGLE, N_ANGLE, 3)
     rz = np.stack([np.hypot(xyz[..., 0], xyz[..., 1]), xyz[..., 2]], axis=-1)
-    model.design_mean.copy_(torch.as_tensor(rz.ravel()))  # designs near the torus
-    model.design_std.fill_(1e-3)
+    monkeypatch.setattr(model, "design_mean", torch.as_tensor(rz.ravel(), dtype=torch.float32))  # near the torus
+    monkeypatch.setattr(model, "design_std", torch.full_like(model.design_std, 1e-3))
     conditions = {name: torus_record()[name] for name in inverse_design.CONDITIONS}
 
-    design = model.sample(conditions, n_steps=2, seed=0)
+    design = model.sample(conditions, seed=0)
     assert design.shape == (N_ANGLE * N_ANGLE * 3,)
     out = design.reshape(N_ANGLE, N_ANGLE, 3)
     phi = np.mod(np.arctan2(out[..., 1], out[..., 0]), 2 * np.pi)
     np.testing.assert_allclose(phi, np.mod(np.arctan2(xyz[..., 1], xyz[..., 0]), 2 * np.pi), atol=1e-9)
     np.testing.assert_allclose(out, xyz, atol=0.1)
-    assert model.sample(stack(conditions, 2), n_steps=2, seed=0, batch_size=1).shape == (2, N_ANGLE * N_ANGLE * 3)
+    monkeypatch.setattr(inverse_design, "BATCH_SIZE", 1)
+    assert model.sample(stack(conditions, 2), seed=0).shape == (2, N_ANGLE * N_ANGLE * 3)
 
     for nfp in (0, 7, 2.5):
         with pytest.raises(ValueError):
-            model.sample(dict(conditions, nfp=nfp), n_steps=2)
+            model.sample(dict(conditions, nfp=nfp))
 
 
-def test_save_and_load(tmp_path):
-    """A saved model loads with the same weights and statistics.
+def test_save_and_load(random_models, tmp_path):
+    """A saved model loads with the same weights and statistics, and only into its own class.
 
     Args:
+        random_models: fixture, the models.
         tmp_path: pytest's temporary directory.
     """
-    for name, model in small_models().items():
-        with torch.no_grad():
-            for buffer in model.buffers():
-                if buffer.is_floating_point():
-                    buffer.add_(0.5)
+    for name, model in random_models.items():
+        state = {key: value.clone() for key, value in model.state_dict().items()}
+        for key, value in state.items():
+            if value.is_floating_point() and value.dim() == 1:
+                value.add_(0.5)  # statistics and biases differ from a fresh model's
+        model.load_state_dict(state)
         models._save(model, tmp_path / name, description="test")
-        loaded = models.load(tmp_path / name)
-        assert type(loaded) is type(model) and not loaded.training
-        for key, value in model.state_dict().items():
+        loaded = type(model).load(tmp_path / name)
+        assert not loaded.training
+        for key, value in state.items():
             assert torch.equal(loaded.state_dict()[key], value), (name, key)
+    with pytest.raises(ValueError):
+        models.HeatFluxModel.load(tmp_path / "loss_fraction")
 
 
 def test_integrate():

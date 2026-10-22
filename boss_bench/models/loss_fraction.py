@@ -4,69 +4,98 @@ import numpy as np
 import torch
 from torch import nn
 
-from ._common import as_batch
+from ._common import as_batch, load_trained
 
 FIELDS = ("boundary_xyz", "pressure", "toroidal_current", "volume_avg_modB", "nfp")
 N_GRID = 41  # boundary points per angle
 N_PROFILE = 15  # radial points of the profiles
+N_NFP = 12  # the model covers nfp from 1 to N_NFP
+BATCH_SIZE = 256  # configurations evaluated at once
 
 
 class LossFractionModel(nn.Module):
-    r"""Predict the alpha-particle loss fraction of a configuration without computing its equilibrium.
+    """The trained loss-fraction surrogate: predict the alpha-particle loss fraction of a configuration without VMEC.
 
-    The model predicts the fraction of the 5,000 alpha particles born on :math:`s = 0.1`
-    that are lost within :math:`t_\text{max} = 0.1` s, as ``confinement.loss_fraction``
-    computes it from the traced particles. Its inputs need no VMEC run: the plasma
-    boundary, the pressure and toroidal current profiles, the volume-averaged field
-    strength and the number of field periods. This is the surrogate optimized in the
-    paper's surrogate-based optimization.
+    The inputs are the fields ``boundary_xyz``, ``pressure``, ``toroidal_current``,
+    ``volume_avg_modB`` and ``nfp`` (from 1 to 12) of a configuration. The output is the
+    fraction of the alpha particles born on :math:`s = 0.1` that are lost within 0.1 s, as
+    ``confinement.loss_fraction`` computes it from the traced particles.
 
-    The boundary, :math:`R` and :math:`Z` on the 41 × 41 grid of ``boundary_xyz``, is
-    encoded by a convolutional network, periodic in both angles; each other input by a
-    linear layer or, for ``nfp``, an embedding. A multilayer perceptron maps the encodings
-    to the loss fraction, through a sigmoid. Before encoding, the poloidal angle of the
-    boundary is shifted so that :math:`\theta = 0` is the outboard point (largest
-    :math:`R`) of the cross section :math:`\phi = 0`, and :math:`\theta` increases with
-    :math:`Z` there, as in training.
-
-    The model was trained on the train split. On the test split, its mean squared error
-    is 0.0047 and its mean absolute error 0.035.
-
-    Load the trained model with ``models.download`` and ``models.load``. To predict, use
-    ``predict``. To differentiate the prediction, for example with respect to the
-    boundary, call the model on tensors.
-
-    Args:
-        conv_channels (tuple of int): channels of the stride-2 convolutions over the boundary.
-        surf_dim (int): width of the boundary encoding.
-        profile_dim (int): width of each profile encoding.
-        scalar_dim (int): width of the encoding of ``volume_avg_modB`` and of ``nfp``.
-        n_nfp (int): the number of field periods the ``nfp`` embedding covers, from 1.
-        hidden_dim (int): width of the hidden layers.
-        n_layers (int): the number of hidden layers.
+    Load the model with ``LossFractionModel.load`` and predict with ``predict``. Calling the
+    model on tensors gives the prediction with gradients, for example with respect to the
+    boundary. Gradients are available in PyTorch only: the ONNX export gives the
+    prediction without them.
     """
 
-    def __init__(self, conv_channels=(32, 64, 128, 256, 512), surf_dim=512, profile_dim=32, scalar_dim=16,
-                 n_nfp=12, hidden_dim=2048, n_layers=3):
+    def __init__(self):
         super().__init__()
-        self.config = {"conv_channels": list(conv_channels), "surf_dim": surf_dim, "profile_dim": profile_dim,
-                       "scalar_dim": scalar_dim, "n_nfp": n_nfp, "hidden_dim": hidden_dim, "n_layers": n_layers}
+        conv_channels, surf_dim, profile_dim, scalar_dim, hidden_dim = (32, 64, 128, 256, 512), 512, 32, 16, 2048
         self.surface_encoder = _PeriodicConvEncoder(2, conv_channels, surf_dim)
         self.pressure_encoder = nn.Linear(N_PROFILE, profile_dim)
         self.current_encoder = nn.Linear(N_PROFILE, profile_dim)
         self.modB_encoder = nn.Linear(1, scalar_dim)
-        self.nfp_embedding = nn.Embedding(n_nfp, scalar_dim)
-        layers, width = [], surf_dim + 2 * profile_dim + 2 * scalar_dim
-        for _ in range(n_layers):
-            layers += [nn.Linear(width, hidden_dim), nn.GELU()]
-            width = hidden_dim
-        self.mlp = nn.Sequential(*layers, nn.Linear(width, 1), nn.Sigmoid())
+        self.nfp_embedding = nn.Embedding(N_NFP, scalar_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(surf_dim + 2 * profile_dim + 2 * scalar_dim, hidden_dim), nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim), nn.GELU(),
+            nn.Linear(hidden_dim, 1), nn.Sigmoid(),
+        )
         # each input is scaled by (x - low) / (high - low), with its range over the training set
         for name in ("R", "Z", "pressure", "current", "modB"):
             self.register_buffer(f"{name}_range", torch.tensor([0.0, 1.0], dtype=torch.float64))
 
+    @classmethod
+    def load(cls, path, device="cpu"):
+        """Load the trained model.
+
+        Args:
+            path (str): the model's folder, holding ``config.json`` and ``model.safetensors``,
+                e.g. from ``models.download("loss_fraction", path)``.
+            device (str or torch.device): the device to put the model on.
+
+        Returns:
+            LossFractionModel: the model, ready to predict.
+
+        Raises:
+            ValueError: if the folder holds another model.
+        """
+        return load_trained(cls(), "loss_fraction", path, device)
+
+    @torch.no_grad()
+    def predict(self, data):
+        """Predict the loss fraction of one configuration or a batch of them.
+
+        Args:
+            data (dict): the fields of one configuration, as from ``data.load_record``, or of
+                several, with one row per configuration, as from ``data.load``. Only
+                ``boundary_xyz``, ``pressure``, ``toroidal_current``, ``volume_avg_modB`` and
+                ``nfp`` are read.
+
+        Returns:
+            float or np.ndarray: the loss fraction, shape ``(n,)`` for a batch.
+
+        Raises:
+            KeyError: if a field is missing from ``data``.
+            ValueError: if a field contains NaN or inf, or ``nfp`` is out of range.
+        """
+        batch, single = as_batch(data, FIELDS)
+        if np.any((batch["nfp"] < 1) | (batch["nfp"] > N_NFP)):
+            raise ValueError(f"nfp must be between 1 and {N_NFP}")
+        device = self.R_range.device
+        out = []
+        for a in range(0, len(batch["nfp"]), BATCH_SIZE):
+            rows = {name: torch.as_tensor(x[a:a + BATCH_SIZE], device=device) for name, x in batch.items()}
+            out.append(self(**rows).cpu().numpy())
+        out = np.concatenate(out).astype(float)
+        return float(out[0]) if single else out
+
     def forward(self, boundary_xyz, pressure, toroidal_current, volume_avg_modB, nfp):
-        """Predict the loss fraction of a batch of configurations, differentiably.
+        """Predict the loss fraction of a batch of configurations, with gradients.
+
+        This is ``predict`` on tensors, without the input checks, and differentiable with
+        respect to every float input. Gradients are available in PyTorch only, not in the
+        ONNX export.
 
         Args:
             boundary_xyz (torch.Tensor): boundary points [m], shape ``(n, 41 * 41 * 3)`` or
@@ -90,36 +119,6 @@ class LossFractionModel(nn.Module):
             self.modB_encoder(_scale(volume_avg_modB, self.modB_range).float()[:, None]),
         ]
         return self.mlp(torch.cat(encodings, dim=-1))[:, 0]
-
-    @torch.no_grad()
-    def predict(self, data, batch_size=256):
-        """Predict the loss fraction of one configuration or a batch of them.
-
-        Args:
-            data (dict): the fields of one configuration, as from ``data.load_record``, or of
-                several, with one row per configuration, as from ``data.load``. Only the
-                fields in ``FIELDS`` are read: ``boundary_xyz``, ``pressure``,
-                ``toroidal_current``, ``volume_avg_modB`` and ``nfp``.
-            batch_size (int): the number of configurations evaluated at once.
-
-        Returns:
-            float or np.ndarray: the loss fraction, shape ``(n,)`` for a batch.
-
-        Raises:
-            KeyError: if a field is missing from ``data``.
-            ValueError: if a field contains NaN or inf, or ``nfp`` is out of range.
-        """
-        batch, single = as_batch(data, FIELDS)
-        n_nfp = self.config["n_nfp"]
-        if np.any((batch["nfp"] < 1) | (batch["nfp"] > n_nfp)):
-            raise ValueError(f"nfp must be between 1 and {n_nfp}")
-        device = self.R_range.device
-        out = []
-        for a in range(0, len(batch["nfp"]), batch_size):
-            rows = {name: torch.as_tensor(x[a:a + batch_size], device=device) for name, x in batch.items()}
-            out.append(self(**rows).cpu().numpy())
-        out = np.concatenate(out).astype(float)
-        return float(out[0]) if single else out
 
 
 class _PeriodicConvEncoder(nn.Module):

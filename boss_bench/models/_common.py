@@ -1,9 +1,36 @@
-"""Helpers shared by the models: batching the inputs and integrating a flow."""
+"""Helpers shared by the models: loading the weights, batching the inputs and integrating a flow."""
+
+import json
+import os
 
 import numpy as np
 import torch
+from safetensors.torch import load_file
 
 from .._checks import require_finite
+
+
+def load_trained(model, name, path, device):
+    """Load the trained weights in a folder into a model.
+
+    Args:
+        model (torch.nn.Module): the model, as constructed.
+        name (str): the name of the model, as in the folder's ``config.json``.
+        path (str): the folder, holding ``config.json`` and ``model.safetensors``.
+        device (str or torch.device): the device to put the model on.
+
+    Returns:
+        torch.nn.Module: the model, in evaluation mode.
+
+    Raises:
+        ValueError: if the folder holds another model.
+    """
+    with open(os.path.join(path, "config.json")) as f:
+        found = json.load(f).get("model")
+    if found != name:
+        raise ValueError(f"{path} holds the {found!r} model, not {name!r}")
+    model.load_state_dict(load_file(os.path.join(path, "model.safetensors")))
+    return model.to(device).eval()
 
 
 def as_batch(data, fields):
