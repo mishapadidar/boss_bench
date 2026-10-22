@@ -188,7 +188,7 @@ class InverseDesignModel(nn.Module):
         Returns:
             torch.Tensor: the standardized designs, shape ``(n, 41 * 41 * 2)``.
         """
-        return integrate(lambda x, t: self(x, torch.full((len(x),), t, device=x.device), props),
+        return integrate(lambda x, t: self(x, torch.full((x.shape[0],), t, device=x.device), props),
                          x, T_MIN, T_MAX, n_steps, method)
 
     @torch.no_grad()
@@ -224,26 +224,29 @@ class InverseDesignModel(nn.Module):
         for a in range(0, len(nfp), batch_size):
             rows = {name: torch.as_tensor(x[a:a + batch_size], device=device) for name, x in batch.items()}
             x = torch.randn(len(rows["nfp"]), D_DESIGN, generator=gen, device=device)
-            design = self.integrate(x, self.condition(**rows), n_steps, method) * self.design_std + self.design_mean
-            out.append(_boundary_xyz(design.cpu().numpy().astype(float), nfp[a:a + batch_size]))
+            x = self.integrate(x, self.condition(**rows), n_steps, method)
+            out.append(self.boundary(x, rows["nfp"]).cpu().numpy())
         out = np.concatenate(out)
         return out[0] if single else out
 
+    def boundary(self, x, nfp):
+        r"""Convert standardized designs, from ``integrate``, to boundary points laid out as ``boundary_xyz``.
 
-def _boundary_xyz(design, nfp):
-    """Convert designs, (R, Z) on the boundary grid, to boundary points laid out as ``boundary_xyz``.
+        A design is :math:`(R, Z)` on the boundary grid, whose toroidal angles are
+        :math:`\phi_i = 2\pi i / (41\, n_\text{fp})`, :math:`i = 0, \dots, 40`.
 
-    Args:
-        design (np.ndarray): the designs, shape ``(n, 41 * 41 * 2)``.
-        nfp (np.ndarray): their numbers of field periods, shape ``(n,)``.
+        Args:
+            x (torch.Tensor): standardized designs, shape ``(n, 41 * 41 * 2)``.
+            nfp (torch.Tensor): their numbers of field periods, shape ``(n,)``.
 
-    Returns:
-        np.ndarray: the boundary points [m], shape ``(n, 41 * 41 * 3)``.
-    """
-    rz = design.reshape(-1, N_GRID, N_GRID, 2)
-    phi = 2 * np.pi * np.arange(N_GRID)[None, :, None] / (N_GRID * np.asarray(nfp)[:, None, None])
-    xyz = np.stack([rz[..., 0] * np.cos(phi), rz[..., 0] * np.sin(phi), rz[..., 1]], axis=-1)
-    return xyz.reshape(len(rz), -1)
+        Returns:
+            torch.Tensor: the boundary points [m], in float64, shape ``(n, 41 * 41 * 3)``.
+        """
+        rz = (x * self.design_std + self.design_mean).double().reshape(-1, N_GRID, N_GRID, 2)
+        i = torch.arange(N_GRID, device=x.device, dtype=torch.float64)
+        phi = 2 * math.pi * i[None, :, None] / (N_GRID * nfp.double()[:, None, None])
+        xyz = torch.stack([rz[..., 0] * torch.cos(phi), rz[..., 0] * torch.sin(phi), rz[..., 1]], dim=-1)
+        return xyz.reshape(rz.shape[0], -1)
 
 
 class _SinusoidalTimeEmbedding(nn.Module):

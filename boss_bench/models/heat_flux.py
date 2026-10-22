@@ -77,7 +77,7 @@ class HeatFluxModel(nn.Module):
             tuple: **embedding, loss_fraction**, the encodings, shape ``(n, embed_dim)``, and
             the predicted loss fractions, shape ``(n,)``.
         """
-        n = len(nfp)
+        n = nfp.shape[0]
         scalars = torch.cat([nfp.float()[:, None], d_pressure_d_s.float().reshape(n, -1),
                              iota.float().reshape(n, -1), volume_avg_modB.float()[:, None],
                              minor_radius.float()[:, None]], dim=1)
@@ -100,7 +100,7 @@ class HeatFluxModel(nn.Module):
         Returns:
             torch.Tensor: the velocity, shape ``(k, 5)``.
         """
-        t_emb = self.time_embedding(t.reshape(1, 1).float()).expand(len(x), -1)
+        t_emb = self.time_embedding(t.reshape(1, 1).float()).expand(x.shape[0], -1)
         return self.velocity_net(x, t_emb, embedding)
 
     def integrate(self, x, embedding, n_steps=50, method="euler"):
@@ -189,9 +189,25 @@ class HeatFluxModel(nn.Module):
             rows = torch.as_tensor(np.repeat(np.arange(a, b), counts[a:b]), device=embedding.device)
             x = self.integrate(x, embedding[rows], n_steps, method)
             for i, points in zip(range(a, b), torch.split(x, counts[a:b].tolist())):
-                out.append((*self._strike_points(points), float(loss_fraction[i])))
+                strike_points = tuple(p.cpu().numpy().astype(float) for p in self.strike_points(points))
+                out.append((*strike_points, float(loss_fraction[i])))
             a = b
         return out[0] if single else out
+
+    def strike_points(self, x):
+        r"""Convert points of the flow, from ``integrate``, to strike points.
+
+        Args:
+            x (torch.Tensor): points of the flow at time 1, shape ``(k, 5)``.
+
+        Returns:
+            tuple: **zeta, theta, energy**, the Boozer angles in :math:`[0, 2\pi)` [rad] and
+            energies [MeV] of the strike points, each of shape ``(k,)``.
+        """
+        zeta = torch.atan2(x[:, 1], x[:, 0]) % (2 * math.pi)
+        theta = torch.atan2(x[:, 3], x[:, 2]) % (2 * math.pi)
+        energy = torch.exp(x[:, 4] * self.log_energy_mean_std[1] + self.log_energy_mean_std[0])
+        return zeta, theta, energy
 
     def _encode(self, batch, s0, batch_size):
         """Encode the configurations of a batch, batch_size at a time; see encode."""
@@ -202,13 +218,6 @@ class HeatFluxModel(nn.Module):
             rows = {name: torch.as_tensor(x[a:a + batch_size], device=device) for name, x in batch.items()}
             out.append(self.encode(**rows, s0=torch.full((len(rows["nfp"]),), s0, device=device)))
         return torch.cat([e for e, _ in out]), torch.cat([f for _, f in out])
-
-    def _strike_points(self, x):
-        """Convert points of the flow to strike points: Boozer angles [rad] and energies [MeV]."""
-        zeta = torch.atan2(x[:, 1], x[:, 0]) % (2 * math.pi)
-        theta = torch.atan2(x[:, 3], x[:, 2]) % (2 * math.pi)
-        energy = torch.exp(x[:, 4] * self.log_energy_mean_std[1] + self.log_energy_mean_std[0])
-        return tuple(a.cpu().numpy().astype(float) for a in (zeta, theta, energy))
 
 
 class _ConditioningEncoder(nn.Module):
