@@ -1,16 +1,4 @@
-"""Pretrained models from the BoSS paper, in PyTorch.
-
-- ``LossFractionModel`` predicts the alpha-particle loss fraction of a configuration from
-  its boundary and profiles, without VMEC.
-- ``HeatFluxModel`` samples where the lost alpha particles strike the boundary, as in the
-  heat-flux benchmark.
-- ``InverseDesignModel`` generates boundaries with a chosen loss fraction, shape, field
-  and profiles.
-
-Each pretrained model is a folder holding ``config.json`` and ``model.safetensors``:
-download it from Hugging Face with ``download`` and load it with ``load``. The models need
-PyTorch and safetensors: ``pip install "boss-bench[models]"``.
-"""
+"""Trained models from the BoSS paper, in PyTorch."""
 
 import json
 import os
@@ -27,42 +15,49 @@ from .inverse_design import InverseDesignModel
 from .loss_fraction import LossFractionModel
 
 MODELS = {"loss_fraction": LossFractionModel, "heat_flux": HeatFluxModel, "inverse_design": InverseDesignModel}
-HF_REPO = "mishapadidar/boss"  # the Hugging Face repository of the pretrained models
+HF_REPO = "mishapadidar/boss"  # the Hugging Face repository of the trained models
 
 
-def download(name, models_dir, revision="main"):
-    """Download a pretrained model from the BoSS repository on Hugging Face.
+def download(name, path):
+    """Download a trained PyTorch model of the BoSS benchmark from Hugging Face.
 
-    The model's ``config.json`` and ``model.safetensors`` are saved in ``models_dir/name``;
-    files already there are not downloaded again. The repository also holds the ONNX
-    export of each model, which this function does not download.
+    Three models are available:
+
+    - ``"loss_fraction"`` (``LossFractionModel``) predicts the alpha-particle loss
+      fraction of a configuration from its boundary and profiles, without VMEC.
+    - ``"heat_flux"`` (``HeatFluxModel``) samples where the lost alpha particles strike
+      the boundary, as in the heat-flux benchmark.
+    - ``"inverse_design"`` (``InverseDesignModel``) generates boundaries with a chosen
+      loss fraction, shape, field and profiles.
+
+    This function downloads the model's ``config.json`` and ``model.safetensors`` into the
+    folder ``path``, which ``load`` then reads. Files already in the folder are not
+    downloaded again. The ONNX files of the models are not downloaded; get them from
+    Hugging Face directly.
 
     Args:
         name (str): ``"loss_fraction"``, ``"heat_flux"`` or ``"inverse_design"``.
-        models_dir (str): the folder to save the models in.
-        revision (str): the branch, tag or commit of the Hugging Face repository.
+        path (str): the folder to download the model into; it is created if needed.
 
     Returns:
-        str: the folder of the model, ``models_dir/name``, to pass to ``load``.
+        str: ``path``.
 
     Raises:
         ValueError: if the model name is unknown.
     """
     if name not in MODELS:
         raise ValueError(f"unknown model {name!r}; choose from {list(MODELS)}")
-    folder = os.path.join(models_dir, name)
-    os.makedirs(folder, exist_ok=True)
+    os.makedirs(path, exist_ok=True)
     for file in ("config.json", "model.safetensors"):
-        path = os.path.join(folder, file)
-        if not os.path.exists(path):
-            url = f"https://huggingface.co/{HF_REPO}/resolve/{revision}/{name}/{file}"
-            urllib.request.urlretrieve(url, path + ".part")
-            os.replace(path + ".part", path)  # a partial download never looks complete
-    return folder
+        target = os.path.join(path, file)
+        if not os.path.exists(target):
+            urllib.request.urlretrieve(f"https://huggingface.co/{HF_REPO}/resolve/main/{name}/{file}", target + ".part")
+            os.replace(target + ".part", target)  # a partial download never looks complete
+    return path
 
 
 def load(path, device="cpu"):
-    """Load a pretrained model from its folder.
+    """Load a trained model from its folder.
 
     Args:
         path (str): the folder, holding ``config.json`` and ``model.safetensors``, e.g.

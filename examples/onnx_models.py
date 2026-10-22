@@ -1,4 +1,4 @@
-"""Run the pretrained models with ONNX Runtime, without PyTorch.
+"""Run the trained models with ONNX Runtime, without PyTorch.
 
 Predicts the loss fraction of a test configuration with the surrogate, and samples the
 strike points of its lost particles with the heat-flux model, integrating the flow with

@@ -151,7 +151,7 @@ bb.plot_heat_flux(record, predictions)          # heat flux over one field perio
 bb.plot_rollouts(z_true, z_pred)                # trajectories vs lead time, per channel
 ```
 
-## Pretrained models
+## Trained models
 
 Three models from the paper are available on
 [Hugging Face](https://huggingface.co/mishapadidar/boss), in PyTorch and ONNX:
@@ -165,20 +165,20 @@ Three models from the paper are available on
   field and profiles.
 
 The PyTorch models need `pip install "boss-bench[models]"`. `models.download` saves a
-model from Hugging Face in a folder, here `BoSS-models/`, and `models.load` reads it. The
-models read the BoSS fields by name, from one record or from a batch of configurations:
+model from Hugging Face in a folder, and `models.load` reads it. The models read the
+BoSS fields by name, from one record or from a batch of configurations:
 
 ```python
 from boss_bench import models
 
-surrogate = models.load(models.download("loss_fraction", "BoSS-models"))
+surrogate = models.load(models.download("loss_fraction", "BoSS-models/loss_fraction"))
 surrogate.predict(record)                                    # loss fraction at s0 = 0.1
 
-heat_flux = models.load(models.download("heat_flux", "BoSS-models"))
+heat_flux = models.load(models.download("heat_flux", "BoSS-models/heat_flux"))
 prediction = heat_flux.sample(record, s0=0.1)                # (zeta, theta, energy, loss_fraction)
 bb.heat_flux_error(prediction, record, s0=0.1)
 
-generator = models.load(models.download("inverse_design", "BoSS-models"))
+generator = models.load(models.download("inverse_design", "BoSS-models/inverse_design"))
 conditions = {name: record[name] for name in models.inverse_design.CONDITIONS if name != "loss_fraction"}
 boundary_xyz = generator.sample({**conditions, "loss_fraction": 0.01})   # laid out as record["boundary_xyz"]
 ```
@@ -215,7 +215,7 @@ files (it is searched recursively):
 - `trajectory_rollouts.py` loads the orbits of one configuration, plots made-up
   predictions against them and scores them. `DATA_DIR` must contain at least one
   trajectory data file from the test split.
-- `pretrained_models.py` runs the three pretrained models on test configurations: it
+- `trained_models.py` runs the three trained models on test configurations: it
   scores the loss-fraction surrogate and the heat-flux model, and plots boundaries
   generated with a lower loss fraction than a test configuration's. `DATA_DIR` must
   contain at least one confinement data file from the test split. It takes the models

@@ -41,7 +41,8 @@ class InverseDesignModel(nn.Module):
     Fourier surface (``mpol = ntor = 10``), rescaled to ARIES-CS size, and evaluated with
     VMEC and particle tracing (see ``design.design_metrics``).
 
-    Load a pretrained model with ``models.load``. To generate, use ``sample``.
+    Load the trained model with ``models.download`` and ``models.load``. To generate, use
+    ``sample``.
 
     Args:
         base_ch (int): channels of the first UNet level.

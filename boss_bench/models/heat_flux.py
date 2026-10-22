@@ -35,8 +35,8 @@ class HeatFluxModel(nn.Module):
     median energy distance of 0.031, median heat-flux errors of 0.34 (16 × 16) and 0.57
     (32 × 32), and a mean absolute loss-fraction error of 0.034, with 50 Euler steps.
 
-    Load a pretrained model with ``models.load``. To predict, use ``sample`` and
-    ``predict_loss_fraction``.
+    Load the trained model with ``models.download`` and ``models.load``. To predict, use
+    ``sample`` and ``predict_loss_fraction``.
 
     Args:
         embed_dim (int): width of the encoding of the configuration and of the time.

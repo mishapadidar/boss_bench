@@ -32,9 +32,9 @@ class LossFractionModel(nn.Module):
     The model was trained on the train split. On the test split, its mean squared error
     is 0.0047 and its mean absolute error 0.035.
 
-    Load a pretrained model with ``models.load``. To predict, use ``predict``. To
-    differentiate the prediction, for example with respect to the boundary, call the
-    model on tensors.
+    Load the trained model with ``models.download`` and ``models.load``. To predict, use
+    ``predict``. To differentiate the prediction, for example with respect to the
+    boundary, call the model on tensors.
 
     Args:
         conv_channels (tuple of int): channels of the stride-2 convolutions over the boundary.
