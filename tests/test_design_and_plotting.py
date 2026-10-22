@@ -41,6 +41,7 @@ def test_plots_draw(confinement_file, trajectory_file):
         predictions[s0] = (zeta, theta, energy, len(zeta) / n_launched)
 
     assert bb.plot_device(record) is not None
+    assert bb.plot_device({k: record[k] for k in ("boundary_xyz", "phi1d", "theta1d", "nfp")}) is not None
     assert bb.plot_modB_boozer(record) is not None
     assert bb.plot_loss_fraction_curves(record) is not None
     assert bb.plot_strike_points(record, predictions) is not None

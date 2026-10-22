@@ -18,18 +18,50 @@ BATCH_SIZE = 512  # configurations encoded at once
 
 
 class HeatFluxModel(nn.Module):
-    r"""The trained heat-flux model: sample where the lost alpha particles of a configuration strike the boundary.
+    r"""The IID baseline of the paper's heat-flux task: sample where the lost alpha particles strike the boundary.
 
-    The inputs are the fields ``boundary_xyz``, ``nfp``, ``d_pressure_d_s``, ``iota``,
-    ``volume_avg_modB`` and ``minor_radius`` of a configuration, and a birth surface
-    :math:`s_0` = 0.1, 0.25 or 0.5. The outputs are the predicted loss fraction of the
-    particles born on :math:`s_0`, and a sample of strike points of the lost ones: their
-    Boozer angles :math:`(\zeta, \theta)` and energies, as ``heat_flux.lost_particles``
-    computes them from the traced particles. A sample is a prediction for
-    ``heat_flux.heat_flux_metrics``.
+    For the alpha particles born on one surface :math:`s_0` = 0.1, 0.25 or 0.5, the model
+    predicts the loss fraction, and samples the strike points of the lost particles on the
+    boundary: their Boozer angles :math:`(\zeta, \theta)` and energies, as
+    ``heat_flux.lost_particles`` computes them from the traced particles. Each strike point
+    is drawn independently by a conditional flow-matching model, as many as the predicted
+    number of lost particles. A sample is a prediction for ``heat_flux.heat_flux_metrics``.
 
-    Load the model with ``HeatFluxModel.load``, and predict with ``sample`` and
-    ``predict_loss_fraction``. The predictions are not differentiable.
+    The inputs are the birth surface :math:`s_0` and these fields of the configuration:
+
+    - ``boundary_xyz``: the plasma boundary over one field period [m], shape
+      ``(41 * 41 * 3,)`` as stored, or ``(41, 41, 3)``. Reshaped to ``(41, 41, 3)``, it is
+      indexed :math:`(\phi, \theta, xyz)`: Cartesian points of the boundary surface on 41
+      toroidal angles :math:`\phi` uniformly spaced in :math:`[0, 2\pi / n_\text{fp})` and
+      41 poloidal angles :math:`\theta` uniformly spaced in :math:`[0, 2\pi)`, endpoints
+      excluded. This is the layout of ``gamma()`` of a simsopt ``SurfaceRZFourier`` with
+      these quadrature points.
+    - ``nfp``: the number of field periods.
+    - ``d_pressure_d_s``: the radial derivative of the pressure [Pa], shape ``(15,)``,
+      on the radial grid ``s1d``, 15 points from :math:`s = 10^{-4}` to 1.
+    - ``iota``: the rotational transform of the VMEC equilibrium, shape ``(15,)``, on the
+      same grid.
+    - ``volume_avg_modB``: the volume-averaged field strength [T].
+    - ``minor_radius``: the effective minor radius of the boundary [m].
+
+    Load the model with ``load``, and predict with ``sample`` and ``predict_loss_fraction``.
+    The predictions are not differentiable.
+
+    Example:
+        Sample the strike points of the particles born on :math:`s_0 = 0.1` in a test
+        configuration, and compare their heat flux with the truth::
+
+            import h5py
+            import boss_bench as bb
+            from boss_bench import models
+            from boss_bench.models import HeatFluxModel
+
+            path = models.download("heat_flux", "BoSS-models/heat_flux")
+            model = HeatFluxModel.load(path)
+            with h5py.File(bb.list_files("BoSS", "confinement", "test")[0], "r") as f:
+                record = bb.load_record(f, 0)
+            prediction = model.sample(record, s0=0.1, seed=0)
+            bb.heat_flux_error(prediction, record, s0=0.1)
     """
 
     def __init__(self):

@@ -20,7 +20,8 @@ def plot_device(record, ax=None):
 
     Args:
         record (dict): the configuration's fields from ``data.load_record``, including
-            ``boundary_xyz``, ``modB``, ``phi1d``, ``theta1d`` and ``nfp``.
+            ``boundary_xyz``, ``phi1d``, ``theta1d`` and ``nfp``. Without ``modB``, as for a
+            generated boundary, the boundary is drawn in one shaded color.
         ax (matplotlib.axes.Axes, optional): a 3D axis to draw on. By default, a new figure
             is made.
 
@@ -29,13 +30,20 @@ def plot_device(record, ax=None):
     """
     n_phi, n_theta = len(record["phi1d"]), len(record["theta1d"])
     xyz = np.asarray(record["boundary_xyz"]).reshape(n_phi, n_theta, 3)
-    modB = np.asarray(record["modB"]).reshape(-1, n_phi, n_theta)[-1]  # s = 1
+    if "modB" in record:
+        modB = np.asarray(record["modB"]).reshape(-1, n_phi, n_theta)[-1]  # s = 1
+    else:
+        modB = np.zeros((n_phi, n_theta))
     xyz, modB = _full_torus(xyz, modB, int(record["nfp"]))
     if ax is None:
         ax = plt.figure(figsize=(6, 6)).add_subplot(projection="3d")
-    colors = plt.cm.jet((modB - modB.min()) / (modB.max() - modB.min()))
-    ax.plot_surface(xyz[..., 0], xyz[..., 1], xyz[..., 2], facecolors=colors,
-                    rstride=1, cstride=1, linewidth=0, shade=False)
+    if "modB" in record:
+        colors = plt.cm.jet((modB - modB.min()) / (modB.max() - modB.min()))
+        ax.plot_surface(xyz[..., 0], xyz[..., 1], xyz[..., 2], facecolors=colors,
+                        rstride=1, cstride=1, linewidth=0, shade=False)
+    else:
+        ax.plot_surface(xyz[..., 0], xyz[..., 1], xyz[..., 2], color="tab:blue",
+                        rstride=1, cstride=1, linewidth=0, shade=True)
     ax.view_init(elev=90, azim=-90)
     ax.set_box_aspect(np.ptp(xyz.reshape(-1, 3), axis=0))
     ax.set_axis_off()

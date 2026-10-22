@@ -19,7 +19,7 @@ HF_REPO = "mishapadidar/boss"  # the Hugging Face repository of the trained mode
 
 
 def download(name, path):
-    """Download a trained PyTorch model of the BoSS benchmark from Hugging Face.
+    """Download a trained PyTorch model baseline from Hugging Face.
 
     Three models are available:
 

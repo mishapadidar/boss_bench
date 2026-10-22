@@ -14,17 +14,44 @@ BATCH_SIZE = 256  # configurations evaluated at once
 
 
 class LossFractionModel(nn.Module):
-    """The trained loss-fraction surrogate: predict the alpha-particle loss fraction of a configuration without VMEC.
+    r"""The trained loss-fraction surrogate of the paper: predict the alpha-particle loss fraction without VMEC.
 
-    The inputs are the fields ``boundary_xyz``, ``pressure``, ``toroidal_current``,
-    ``volume_avg_modB`` and ``nfp`` (from 1 to 12) of a configuration. The output is the
-    fraction of the alpha particles born on :math:`s = 0.1` that are lost within 0.1 s, as
-    ``confinement.loss_fraction`` computes it from the traced particles.
+    The model predicts the fraction of the alpha particles born on :math:`s = 0.1` that are
+    lost within 0.1 s, as ``confinement.loss_fraction`` computes it from the traced
+    particles. Its inputs are fields of the configuration that need no VMEC run:
 
-    Load the model with ``LossFractionModel.load`` and predict with ``predict``. Calling the
-    model on tensors gives the prediction with gradients, for example with respect to the
-    boundary. Gradients are available in PyTorch only: the ONNX export gives the
-    prediction without them.
+    - ``boundary_xyz``: the plasma boundary over one field period [m], shape
+      ``(41 * 41 * 3,)`` as stored, or ``(41, 41, 3)``. Reshaped to ``(41, 41, 3)``, it is
+      indexed :math:`(\phi, \theta, xyz)`: Cartesian points of the boundary surface on 41
+      toroidal angles :math:`\phi` uniformly spaced in :math:`[0, 2\pi / n_\text{fp})` and
+      41 poloidal angles :math:`\theta` uniformly spaced in :math:`[0, 2\pi)`, endpoints
+      excluded. This is the layout of ``gamma()`` of a simsopt ``SurfaceRZFourier`` with
+      these quadrature points.
+    - ``pressure``: the pressure profile [Pa], shape ``(15,)``, on the radial grid ``s1d``,
+      15 points from :math:`s = 10^{-4}` to 1.
+    - ``toroidal_current``: the enclosed toroidal current profile [A], shape ``(15,)``, on
+      the same grid.
+    - ``volume_avg_modB``: the volume-averaged field strength [T].
+    - ``nfp``: the number of field periods, from 1 to 12.
+
+    Load the model with ``load`` and predict with ``predict``. Calling the model on tensors
+    gives the prediction with gradients, for example with respect to the boundary.
+    Gradients are available in PyTorch only: the ONNX export gives the prediction without
+    them.
+
+    Example:
+        Predict the loss fraction of a test configuration::
+
+            import h5py
+            import boss_bench as bb
+            from boss_bench import models
+            from boss_bench.models import LossFractionModel
+
+            path = models.download("loss_fraction", "BoSS-models/loss_fraction")
+            model = LossFractionModel.load(path)
+            with h5py.File(bb.list_files("BoSS", "confinement", "test")[0], "r") as f:
+                record = bb.load_record(f, 0)
+            model.predict(record)
     """
 
     def __init__(self):

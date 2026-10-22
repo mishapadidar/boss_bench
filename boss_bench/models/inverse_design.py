@@ -25,25 +25,51 @@ BASE_CH, CH_MULT, NUM_RES_BLOCKS, ATTN_LEVELS, NUM_HEADS = 128, (1, 2, 2), 4, (2
 
 
 class InverseDesignModel(nn.Module):
-    """The trained inverse-design model: generate plasma boundaries with a desired loss fraction, shape and field.
+    r"""The Diffusion baseline of the paper's inverse-design task: generate plasma boundaries with desired properties.
 
-    The inputs are the properties the configuration should have, under the names of the
-    BoSS fields and in their units:
+    The model generates the plasma boundary of a configuration from properties it should
+    have, by conditional flow matching. The inputs are these properties, under the names of
+    the BoSS fields and in their units:
 
-    - ``nfp``, the number of field periods, from 1 to 6;
-    - ``loss_fraction``, the fraction of the alpha particles born on :math:`s = 0.1` that
-      are lost, as ``confinement.loss_fraction`` computes it;
-    - ``toroidal_flux_edge``, ``minor_radius``, ``aspect_ratio``, ``min_modB`` and
-      ``mirror_ratio``;
-    - the ``pressure`` and ``iota`` profiles, of 15 points each;
-    - ``vmec_ncurr``, 0 if the equilibrium is computed with the ``iota`` profile, 1 if it
-      is current-free.
+    - ``nfp``: the number of field periods, from 1 to 6.
+    - ``loss_fraction``: the fraction of the alpha particles born on :math:`s = 0.1` that
+      are lost, as ``confinement.loss_fraction`` computes it.
+    - ``toroidal_flux_edge``: the toroidal flux enclosed by the boundary [Wb].
+    - ``minor_radius``: the effective minor radius of the boundary [m].
+    - ``aspect_ratio``: the aspect ratio.
+    - ``min_modB``: the minimum field strength [T].
+    - ``mirror_ratio``: the mirror ratio, :math:`B_\text{max} / B_\text{min}`.
+    - ``pressure``: the pressure profile [Pa], shape ``(15,)``, on the radial grid ``s1d``,
+      15 points from :math:`s = 10^{-4}` to 1.
+    - ``iota``: the rotational transform, shape ``(15,)``, on the same grid.
+    - ``vmec_ncurr``: 0 if the equilibrium is computed with the ``iota`` profile, 1 if with
+      the current profile.
 
-    The output is a plasma boundary, laid out as the field ``boundary_xyz``. Each call
-    draws new boundaries.
+    The output is a plasma boundary laid out as the field ``boundary_xyz``: shape
+    ``(41 * 41 * 3,)``, or ``(41, 41, 3)`` indexed :math:`(\phi, \theta, xyz)`, with 41
+    toroidal angles uniformly spaced in :math:`[0, 2\pi / n_\text{fp})` and 41 poloidal
+    angles uniformly spaced in :math:`[0, 2\pi)`, endpoints excluded.
 
-    Load the model with ``InverseDesignModel.load``, and generate with ``sample``. The
-    boundaries are not differentiable with respect to the properties.
+    Load the model with ``load``, and generate with ``sample``. Each call draws new
+    boundaries; they are not differentiable with respect to the properties.
+
+    Example:
+        Generate a boundary with the properties of a test configuration, but a tenth of its
+        loss fraction::
+
+            import h5py
+            import boss_bench as bb
+            from boss_bench import models
+            from boss_bench.models import InverseDesignModel
+
+            path = models.download("inverse_design", "BoSS-models/inverse_design")
+            model = InverseDesignModel.load(path)
+            with h5py.File(bb.list_files("BoSS", "confinement", "test")[0], "r") as f:
+                record = bb.load_record(f, 0)
+            conditions = {name: record[name] for name in models.inverse_design.CONDITIONS
+                          if name != "loss_fraction"}
+            loss_fraction = bb.loss_fraction(record["confinement_time"], record["t_max"], record["s_init"])
+            boundary_xyz = model.sample({**conditions, "loss_fraction": 0.1 * loss_fraction}, seed=0)
     """
 
     def __init__(self):

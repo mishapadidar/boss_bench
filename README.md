@@ -195,9 +195,12 @@ example with ONNX Runtime; `examples/onnx_models.py` shows how. To download whol
 folders, use the Hugging Face command line (`pip install huggingface_hub`):
 
 ```bash
-hf download mishapadidar/boss --include "heat_flux/*" --local-dir BoSS-models                # one model
-hf download mishapadidar/boss --include "*/config.json" --include "*.onnx" --local-dir BoSS-models   # ONNX only
-hf download mishapadidar/boss --local-dir BoSS-models                                         # everything
+# one model
+hf download mishapadidar/boss --include "heat_flux/*" --local-dir BoSS-models
+# the ONNX files only
+hf download mishapadidar/boss --include "*/config.json" --include "*.onnx" --local-dir BoSS-models
+# everything
+hf download mishapadidar/boss --local-dir BoSS-models
 ```
 
 Each model then sits in its own folder, e.g. `BoSS-models/heat_flux`, which the model's
