@@ -7,9 +7,9 @@
 - ``InverseDesignModel`` generates boundaries with a chosen loss fraction, shape, field
   and profiles.
 
-Each pretrained model is a folder holding ``config.json`` and ``model.safetensors``; load
-it with ``load``. The models need PyTorch and safetensors: ``pip install
-"boss-bench[models]"``.
+Each pretrained model is a folder holding ``config.json`` and ``model.safetensors``:
+download it with ``boss_bench.download_model`` and load it with ``load``. The models need
+PyTorch and safetensors: ``pip install "boss-bench[models]"``.
 """
 
 import json
@@ -32,7 +32,8 @@ def load(path, device="cpu"):
     """Load a pretrained model from its folder.
 
     Args:
-        path (str): the folder, holding ``config.json`` and ``model.safetensors``.
+        path (str): the folder, holding ``config.json`` and ``model.safetensors``, e.g.
+            from ``boss_bench.download_model``.
         device (str or torch.device): the device to put the model on.
 
     Returns:

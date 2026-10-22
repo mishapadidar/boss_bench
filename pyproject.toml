@@ -30,6 +30,7 @@ Repository = "https://github.com/mishapadidar/boss_bench"
 Issues = "https://github.com/mishapadidar/boss_bench/issues"
 # Paper = "<PAPER_URL>"  # once the paper is out
 Data = "https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F"
+Models = "https://huggingface.co/mishapadidar/boss"
 
 [tool.setuptools]
 packages = ["boss_bench", "boss_bench.models"]
