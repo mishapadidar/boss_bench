@@ -25,7 +25,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 - [ ] Run `examples/pretrained_models.py` and `examples/onnx_models.py` against the live
       repository, with an empty models folder.
 - [ ] Tag the Hugging Face repository at the paper version, and pin the default
-      `revision` of `download_model` to the tag.
+      `revision` of `models.download` to the tag.
 
 ## Benchmark definitions to confirm
 

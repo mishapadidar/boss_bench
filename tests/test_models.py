@@ -1,5 +1,7 @@
 """Tests of the model code on small, randomly initialized models; the pretrained weights are not needed."""
 
+import os
+
 import numpy as np
 import pytest
 
@@ -156,3 +158,45 @@ def test_integrate():
     with pytest.raises(ValueError):
         _common.integrate(lambda x, t: -x, x0, 0.0, 1.0, n, "rk4")
     assert NFP == 2  # the toroidal angles above assume the conftest torus
+
+
+@pytest.fixture
+def fake_download(monkeypatch):
+    """Replace the download from Hugging Face by writing the URL to the file.
+
+    Args:
+        monkeypatch: pytest's monkeypatch fixture.
+
+    Returns:
+        list: the URLs downloaded, in order.
+    """
+    urls = []
+
+    def retrieve(url, path):
+        urls.append(url)
+        with open(path, "w") as f:
+            f.write(url)
+
+    monkeypatch.setattr(models.urllib.request, "urlretrieve", retrieve)
+    return urls
+
+
+def test_download(tmp_path, fake_download):
+    """The files of the model are saved in its folder, and only once.
+
+    Args:
+        tmp_path: pytest's temporary directory.
+        fake_download: fixture, the URLs downloaded.
+    """
+    folder = models.download("heat_flux", tmp_path)
+    assert folder == os.path.join(tmp_path, "heat_flux")
+    assert sorted(os.listdir(folder)) == ["config.json", "model.safetensors"]
+    assert fake_download == [f"https://huggingface.co/mishapadidar/boss/resolve/main/heat_flux/{file}"
+                             for file in ("config.json", "model.safetensors")]
+    models.download("heat_flux", tmp_path, revision="v1")
+    assert len(fake_download) == 2  # the files were already there
+    models.download("loss_fraction", tmp_path, revision="v1")
+    assert fake_download[-1].endswith("/resolve/v1/loss_fraction/model.safetensors")
+    with pytest.raises(ValueError):
+        models.download("pointnet", tmp_path)
+    assert len(fake_download) == 4

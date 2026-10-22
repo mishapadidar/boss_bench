@@ -164,27 +164,41 @@ Three models from the paper are available on
 - `inverse_design`: generates plasma boundaries with a chosen loss fraction, shape,
   field and profiles.
 
-The PyTorch models need `pip install "boss-bench[models]"`. `bb.download_model` saves a
-model in a folder, here `BoSS-models/`, and `models.load` reads it. The models read the
-BoSS fields by name, from one record or from a batch of configurations:
+The PyTorch models need `pip install "boss-bench[models]"`. `models.download` saves a
+model from Hugging Face in a folder, here `BoSS-models/`, and `models.load` reads it. The
+models read the BoSS fields by name, from one record or from a batch of configurations:
 
 ```python
 from boss_bench import models
 
-surrogate = models.load(bb.download_model("loss_fraction", "BoSS-models"))
+surrogate = models.load(models.download("loss_fraction", "BoSS-models"))
 surrogate.predict(record)                                    # loss fraction at s0 = 0.1
 
-heat_flux = models.load(bb.download_model("heat_flux", "BoSS-models"))
+heat_flux = models.load(models.download("heat_flux", "BoSS-models"))
 prediction = heat_flux.sample(record, s0=0.1)                # (zeta, theta, energy, loss_fraction)
 bb.heat_flux_error(prediction, record, s0=0.1)
 
-generator = models.load(bb.download_model("inverse_design", "BoSS-models"))
+generator = models.load(models.download("inverse_design", "BoSS-models"))
 conditions = {name: record[name] for name in models.inverse_design.CONDITIONS if name != "loss_fraction"}
 boundary_xyz = generator.sample({**conditions, "loss_fraction": 0.01})   # laid out as record["boundary_xyz"]
 ```
 
-To get the ONNX files as well, pass `onnx=True` to `bb.download_model`. They run without
-PyTorch, for example with ONNX Runtime; `examples/onnx_models.py` shows how.
+### Downloading from Hugging Face directly
+
+Each model is a folder of the Hugging Face repository, holding `config.json`, the PyTorch
+weights `model.safetensors` and the ONNX files. The ONNX files run without PyTorch, for
+example with ONNX Runtime; `examples/onnx_models.py` shows how. To download whole model
+folders, use the Hugging Face command line (`pip install huggingface_hub`):
+
+```bash
+hf download mishapadidar/boss --include "heat_flux/*" --local-dir BoSS-models                # one model
+hf download mishapadidar/boss --include "*/config.json" --include "*.onnx" --local-dir BoSS-models   # ONNX only
+hf download mishapadidar/boss --local-dir BoSS-models                                         # everything
+```
+
+Each model then sits in its own folder, e.g. `BoSS-models/heat_flux`, which `models.load`
+reads. Single files can also be downloaded from the **Files and versions** tab of the
+[repository](https://huggingface.co/mishapadidar/boss/tree/main).
 
 ## Examples
 
@@ -207,7 +221,8 @@ files (it is searched recursively):
   contain at least one confinement data file from the test split. It takes the models
   folder as a second argument, by default `BoSS-models`.
 - `onnx_models.py` runs the loss-fraction surrogate and the heat-flux model with ONNX
-  Runtime, without PyTorch. It takes the same arguments.
+  Runtime, without PyTorch. It takes the same arguments, with the ONNX files downloaded
+  into the models folder first (see above).
 
 ## Tests
 

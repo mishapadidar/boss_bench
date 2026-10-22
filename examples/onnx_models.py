@@ -2,9 +2,10 @@
 
 Predicts the loss fraction of a test configuration with the surrogate, and samples the
 strike points of its lost particles with the heat-flux model, integrating the flow with
-numpy. The ONNX files are downloaded from Hugging Face into MODELS_DIR the first time;
-their inputs are BoSS fields, float64 except int64 nfp.
+numpy. The inputs of the ONNX files are BoSS fields, float64 except int64 nfp. Download
+the two models from Hugging Face into MODELS_DIR first (pip install huggingface_hub):
 
+    hf download mishapadidar/boss --include "loss_fraction/*" --include "heat_flux/*" --local-dir BoSS-models
     python onnx_models.py DATA_DIR [MODELS_DIR]
 
 DATA_DIR is a directory containing at least one BoSS confinement data file from the test split,
@@ -27,6 +28,10 @@ models_dir = sys.argv[2] if len(sys.argv) > 2 else "BoSS-models"
 paths = bb.list_files(data_dir, "confinement", "test")[:1]
 if not paths:
     sys.exit(f"No confinement test files found in {data_dir}. Download the BoSS data first.")
+for name in ("loss_fraction", "heat_flux"):
+    if not os.path.isdir(os.path.join(models_dir, name)):
+        sys.exit(f"No {name} model in {models_dir}. Download it first: hf download mishapadidar/boss "
+                 f'--include "{name}/*" --local-dir {models_dir}')
 with h5py.File(paths[0], "r") as f:
     record = bb.load_record(f, 0)
 
@@ -41,13 +46,13 @@ def run(session, **inputs):
 one = {name: np.asarray(value)[None] for name, value in record.items()}  # a batch of one configuration
 
 # loss-fraction surrogate
-folder = bb.download_model("loss_fraction", models_dir, onnx=True)
+folder = os.path.join(models_dir, "loss_fraction")
 (loss_fraction,) = run(ort.InferenceSession(os.path.join(folder, "model.onnx")), **one)
 true = bb.loss_fraction(record["confinement_time"], record["t_max"], record["s_init"], s0=0.1)
 print(f"loss fraction at s0 = 0.1: predicted {loss_fraction[0]:.3f}, true {true:.3f}")
 
 # heat-flux model: encode the configuration, integrate the flow, decode the strike points
-folder = bb.download_model("heat_flux", models_dir, onnx=True)
+folder = os.path.join(models_dir, "heat_flux")
 encoder, velocity, decoder = (ort.InferenceSession(os.path.join(folder, name))
                               for name in ("encoder.onnx", "velocity.onnx", "decoder.onnx"))
 with open(os.path.join(folder, "config.json")) as f:
