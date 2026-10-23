@@ -255,6 +255,7 @@ If you use the BoSS data or this package, please cite:
 
 Copyright 2026 The Simons Foundation.
 
-The code is released under the
+The code and the trained models are released under the
 [Apache License 2.0](https://github.com/mishapadidar/boss_bench/blob/main/LICENSE).
-The data license is listed on the [BoSS website](https://boss.flatironinstitute.org/).
+The data is released under the
+[CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/).

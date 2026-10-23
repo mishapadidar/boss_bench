@@ -14,7 +14,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 - [ ] Decide whether the Globus collection stays frozen at the paper version. If it will
       grow, mark which files are the paper release.
 - [ ] Publish a manifest of the release files with checksums (sha256).
-- [ ] Choose the data license.
+- [x] Choose the data license: CC BY 4.0, stated on the website's home page.
 
 ## Trained models
 
