@@ -48,7 +48,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
       `docs/index.md`). The authors are "The BoSS Development Team" until then.
 - [x] Run the tests on Python 3.9 and on the newest Python.
 - [ ] Optionally, add a GitHub Actions workflow that runs the tests.
-- [ ] Publish 1.0.0 to PyPI.
+- [x] Publish 1.0.0 to PyPI (tagged `v1.0.0`).
 
 ## Website
 
@@ -58,4 +58,5 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
 - [ ] Update the package Overview page (`docs/package.md`) to the new heat-flux API
       (`heat_flux_metrics`, `binned_heat_flux`, `lost_particles`) and the trajectory API
       (`trajectory_metrics` takes predictions); its formulas now also live in the docstrings.
-- [ ] Deploy after the PyPI release; the workflow installs `boss-bench==1.0.0`.
+- [ ] Rebuild the live site (`docs/_build/html` of the checkout on the Flatiron file
+      system) with `boss-bench==1.0.0` installed in its venv. The GitHub build passes.
