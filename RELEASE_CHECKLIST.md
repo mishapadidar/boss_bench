@@ -22,7 +22,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
       https://huggingface.co/mishapadidar/boss, with the model card, the conversion
       and verification scripts, and `PROVENANCE.md`.
 - [x] Choose the license of the weights: Apache 2.0, as the code.
-- [ ] Run `examples/trained_models.py` and `examples/onnx_models.py` against the live
+- [x] Run `examples/trained_models.py` and `examples/onnx_models.py` against the live
       repository, with an empty models folder.
 - [ ] Tag the Hugging Face repository at the paper version.
 
