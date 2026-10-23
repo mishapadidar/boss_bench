@@ -46,7 +46,7 @@ Outstanding items before publishing `boss-bench` 1.0.0. Delete this file as the 
       `<AUTHORS>`, `<PAPER_TITLE>`, `<PAPER_URL>` and `<BIBTEX>` (in `README.md`,
       `pyproject.toml` and `CITATION.cff`; on the website, the citation section of
       `docs/index.md`). The authors are "The BoSS Development Team" until then.
-- [ ] Run the tests on Python 3.9 and on the newest Python.
+- [x] Run the tests on Python 3.9 and on the newest Python.
 - [ ] Optionally, add a GitHub Actions workflow that runs the tests.
 - [ ] Publish 1.0.0 to PyPI.
 
