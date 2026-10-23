@@ -21,7 +21,7 @@ def plot_device(record, ax=None):
     Args:
         record (dict): the configuration's fields from ``data.load_record``, including
             ``boundary_xyz``, ``phi1d``, ``theta1d`` and ``nfp``. Without ``modB``, as for a
-            generated boundary, the boundary is colored by its height :math:`z`.
+            generated boundary, the boundary is colored by its height :math:`z` and shaded.
         ax (matplotlib.axes.Axes, optional): a 3D axis to draw on. By default, a new figure
             is made.
 
@@ -37,9 +37,10 @@ def plot_device(record, ax=None):
     xyz, values = _full_torus(xyz, values, int(record["nfp"]))
     if ax is None:
         ax = plt.figure(figsize=(6, 6)).add_subplot(projection="3d")
-    colors = plt.cm.jet((values - values.min()) / (values.max() - values.min()))
+    cmap = plt.cm.jet if "modB" in record else plt.cm.viridis
+    colors = cmap((values - values.min()) / (values.max() - values.min()))
     ax.plot_surface(xyz[..., 0], xyz[..., 1], xyz[..., 2], facecolors=colors,
-                    rstride=1, cstride=1, linewidth=0, shade=False)
+                    rstride=1, cstride=1, linewidth=0, shade="modB" not in record)
     ax.view_init(elev=90, azim=-90)
     ax.set_box_aspect(np.ptp(xyz.reshape(-1, 3), axis=0))
     ax.set_axis_off()

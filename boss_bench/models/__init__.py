@@ -21,7 +21,7 @@ ONNX_FILES = {"loss_fraction": ("model.onnx",), "heat_flux": ("encoder.onnx", "v
 
 
 def download(name, path, onnx=False):
-    """Download a trained PyTorch model baseline from Hugging Face.
+    """Download a trained PyTorch or ONNX model baseline from Hugging Face.
 
     Three models are available:
 
