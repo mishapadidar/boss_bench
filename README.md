@@ -183,16 +183,17 @@ conditions = {name: record[name] for name in models.inverse_design.CONDITIONS if
 boundary_xyz = generator.sample({**conditions, "loss_fraction": 0.01})   # laid out as record["boundary_xyz"]
 ```
 
-Calling `surrogate` on tensors gives the loss fraction with gradients, for example with
-respect to the boundary. Gradients are available in PyTorch only; the ONNX files give the
-predictions without them.
+Calling `surrogate` on PyTorch tensors gives the loss fraction with gradients, for
+example with respect to the boundary. Gradients are available in PyTorch only; the ONNX
+files give the predictions without them.
 
 ### Downloading from Hugging Face directly
 
 Each model is a folder of the Hugging Face repository, holding `config.json`, the PyTorch
 weights `model.safetensors` and the ONNX files. The ONNX files run without PyTorch, for
-example with ONNX Runtime; `examples/onnx_models.py` shows how. To download whole model
-folders, use the Hugging Face command line (`pip install huggingface_hub`):
+example with ONNX Runtime; `examples/onnx_models.py` shows how. `models.download(name,
+path, onnx=True)` also downloads them, but needs PyTorch installed. Without it, use the
+Hugging Face command line (`pip install huggingface_hub`):
 
 ```bash
 # one model

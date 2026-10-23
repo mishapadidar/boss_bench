@@ -130,7 +130,10 @@ class InverseDesignModel(nn.Module):
 
     @classmethod
     def load(cls, path, device="cpu"):
-        """Load the trained model.
+        """Load the trained model, from its PyTorch weights.
+
+        This loads ``model.safetensors``. The ONNX export of the model, from the same
+        Hugging Face folder, is not loaded here: run it with ONNX Runtime instead.
 
         Args:
             path (str): the model's folder, holding ``config.json`` and ``model.safetensors``,

@@ -9,33 +9,36 @@ from ._common import as_batch, load_trained
 FIELDS = ("boundary_xyz", "pressure", "toroidal_current", "volume_avg_modB", "nfp")
 N_GRID = 41  # boundary points per angle
 N_PROFILE = 15  # radial points of the profiles
-N_NFP = 12  # the model covers nfp from 1 to N_NFP
+N_NFP = 12  # rows of the nfp embedding, for nfp from 1
+NFP_MAX = 6  # the training data covers nfp from 1 to 6, with one configuration of nfp 12
 BATCH_SIZE = 256  # configurations evaluated at once
 
 
 class LossFractionModel(nn.Module):
-    r"""The trained loss-fraction surrogate of the paper: predict the alpha-particle loss fraction without VMEC.
+    r"""A trained neural loss-fraction surrogate: predict the alpha-particle loss fraction without VMEC.
 
     The model predicts the fraction of the alpha particles born on :math:`s = 0.1` that are
     lost within 0.1 s, as ``confinement.loss_fraction`` computes it from the traced
     particles. Its inputs are fields of the configuration that need no VMEC run:
 
-    - ``boundary_xyz``: the plasma boundary over one field period [m], shape
+    - ``boundary_xyz``: points on the plasma boundary over one field period [m], shape
       ``(41 * 41 * 3,)`` as stored, or ``(41, 41, 3)``. Reshaped to ``(41, 41, 3)``, it is
       indexed :math:`(\phi, \theta, xyz)`: Cartesian points of the boundary surface on 41
       toroidal angles :math:`\phi` uniformly spaced in :math:`[0, 2\pi / n_\text{fp})` and
       41 poloidal angles :math:`\theta` uniformly spaced in :math:`[0, 2\pi)`, endpoints
       excluded. This is the layout of ``gamma()`` of a simsopt ``SurfaceRZFourier`` with
-      these quadrature points.
+      these quadrature points. The model uses the cylindrical coordinates
+      :math:`R = \sqrt{x^2 + y^2}` and :math:`Z = z` of the points; the toroidal angle is
+      set by their place in the grid.
     - ``pressure``: the pressure profile [Pa], shape ``(15,)``, on the radial grid ``s1d``,
       15 points from :math:`s = 10^{-4}` to 1.
     - ``toroidal_current``: the enclosed toroidal current profile [A], shape ``(15,)``, on
       the same grid.
     - ``volume_avg_modB``: the volume-averaged field strength [T].
-    - ``nfp``: the number of field periods, from 1 to 12.
+    - ``nfp``: the number of field periods, from 1 to 6.
 
-    Load the model with ``load`` and predict with ``predict``. Calling the model on tensors
-    gives the prediction with gradients, for example with respect to the boundary.
+    Load the model with ``load`` and predict with ``predict``. Calling the model on PyTorch
+    tensors gives the prediction with gradients, for example with respect to the boundary.
     Gradients are available in PyTorch only: the ONNX export gives the prediction without
     them.
 
@@ -74,7 +77,10 @@ class LossFractionModel(nn.Module):
 
     @classmethod
     def load(cls, path, device="cpu"):
-        """Load the trained model.
+        """Load the trained model, from its PyTorch weights.
+
+        This loads ``model.safetensors``. The ONNX export of the model, from the same
+        Hugging Face folder, is not loaded here: run it with ONNX Runtime instead.
 
         Args:
             path (str): the model's folder, holding ``config.json`` and ``model.safetensors``,
@@ -107,8 +113,8 @@ class LossFractionModel(nn.Module):
             ValueError: if a field contains NaN or inf, or ``nfp`` is out of range.
         """
         batch, single = as_batch(data, FIELDS)
-        if np.any((batch["nfp"] < 1) | (batch["nfp"] > N_NFP)):
-            raise ValueError(f"nfp must be between 1 and {N_NFP}")
+        if np.any((batch["nfp"] < 1) | (batch["nfp"] > NFP_MAX)):
+            raise ValueError(f"nfp must be between 1 and {NFP_MAX}")
         device = self.R_range.device
         out = []
         for a in range(0, len(batch["nfp"]), BATCH_SIZE):
@@ -120,9 +126,9 @@ class LossFractionModel(nn.Module):
     def forward(self, boundary_xyz, pressure, toroidal_current, volume_avg_modB, nfp):
         """Predict the loss fraction of a batch of configurations, with gradients.
 
-        This is ``predict`` on tensors, without the input checks, and differentiable with
-        respect to every float input. Gradients are available in PyTorch only, not in the
-        ONNX export.
+        This is ``predict`` on PyTorch tensors, without the input checks, and
+        differentiable with respect to every float input. Gradients are available in
+        PyTorch only, not in the ONNX export.
 
         Args:
             boundary_xyz (torch.Tensor): boundary points [m], shape ``(n, 41 * 41 * 3)`` or

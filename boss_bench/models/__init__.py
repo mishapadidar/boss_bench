@@ -16,9 +16,11 @@ from .loss_fraction import LossFractionModel
 
 MODELS = {"loss_fraction": LossFractionModel, "heat_flux": HeatFluxModel, "inverse_design": InverseDesignModel}
 HF_REPO = "mishapadidar/boss"  # the Hugging Face repository of the trained models
+ONNX_FILES = {"loss_fraction": ("model.onnx",), "heat_flux": ("encoder.onnx", "velocity.onnx", "decoder.onnx"),
+              "inverse_design": ("encoder.onnx", "velocity.onnx", "decoder.onnx")}
 
 
-def download(name, path):
+def download(name, path, onnx=False):
     """Download a trained PyTorch model baseline from Hugging Face.
 
     Three models are available:
@@ -33,12 +35,15 @@ def download(name, path):
 
     This function downloads the model's ``config.json`` and ``model.safetensors`` into the
     folder ``path``, which the model's ``load`` then reads, e.g. ``HeatFluxModel.load(path)``.
-    Files already in the folder are not downloaded again. The ONNX files of the models are
-    not downloaded; get them from Hugging Face directly.
+    With ``onnx=True``, it also downloads the model's ONNX export, to run with ONNX Runtime:
+    ``model.onnx``, or ``encoder.onnx``, ``velocity.onnx`` and ``decoder.onnx`` for the two
+    flow matching models; ``config.json`` describes their inputs. Files already in the
+    folder are not downloaded again.
 
     Args:
         name (str): ``"loss_fraction"``, ``"heat_flux"`` or ``"inverse_design"``.
         path (str): the folder to download the model into; it is created if needed.
+        onnx (bool): whether to also download the ONNX files.
 
     Returns:
         str: ``path``.
@@ -49,7 +54,7 @@ def download(name, path):
     if name not in MODELS:
         raise ValueError(f"unknown model {name!r}; choose from {list(MODELS)}")
     os.makedirs(path, exist_ok=True)
-    for file in ("config.json", "model.safetensors"):
+    for file in ("config.json", "model.safetensors", *(ONNX_FILES[name] if onnx else ())):
         target = os.path.join(path, file)
         if not os.path.exists(target):
             urllib.request.urlretrieve(f"https://huggingface.co/{HF_REPO}/resolve/main/{name}/{file}", target + ".part")

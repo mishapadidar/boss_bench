@@ -98,7 +98,7 @@ def test_loss_fraction_invalid_inputs(random_models):
     with pytest.raises(ValueError):
         model.predict(dict(record, volume_avg_modB=np.nan))
     with pytest.raises(ValueError):
-        model.predict(dict(record, nfp=13))
+        model.predict(dict(record, nfp=7))
 
 
 def test_heat_flux_sample(random_models, monkeypatch):
@@ -225,6 +225,10 @@ def test_download(tmp_path, fake_download):
                              for file in ("config.json", "model.safetensors")]
     models.download("heat_flux", path)
     assert len(fake_download) == 2  # the files were already there
+    models.download("heat_flux", path, onnx=True)
+    assert sorted(os.listdir(path)) == ["config.json", "decoder.onnx", "encoder.onnx", "model.safetensors",
+                                        "velocity.onnx"]
+    assert len(fake_download) == 5
     with pytest.raises(ValueError):
         models.download("pointnet", tmp_path / "pointnet")
-    assert len(fake_download) == 2
+    assert len(fake_download) == 5
