@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software or the BoSS data, please cite it as below."
+message: "If you use this software or the BoSS data, please cite the paper below."
 title: "boss-bench"
 version: 1.0.0
 license: Apache-2.0
@@ -7,11 +7,21 @@ authors:
   - name: "The BoSS Development Team"
 url: "https://boss.flatironinstitute.org/"
 repository-code: "https://github.com/mishapadidar/boss_bench"
-# Restore once the paper is out, and change the message to "please cite the paper below".
-# preferred-citation:
-#   type: article
-#   title: "<PAPER_TITLE>"
-#   authors:
-#     - name: "<AUTHORS>"
-#   year: 2026
-#   url: "<PAPER_URL>"
+preferred-citation:
+  type: article
+  title: "Generative modeling for fusion: a large-scale benchmark of stellarator fast-ion simulations"
+  authors:
+    - given-names: "Misha"
+      family-names: "Padidar"
+    - given-names: "Teresa"
+      family-names: "Huang"
+    - given-names: "Mark"
+      family-names: "Goldstein"
+    - given-names: "Michael"
+      family-names: "Czekanski"
+    - given-names: "Jeffrey"
+      family-names: "Soules"
+  year: 2026
+  journal: "arXiv preprint arXiv:2610.37910"
+  doi: "10.48550/arXiv.2610.37910"
+  url: "https://arxiv.org/abs/2610.37910"

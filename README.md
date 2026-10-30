@@ -5,7 +5,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/mishapadidar/boss_bench/blob/main/LICENSE)
 [![Data](https://img.shields.io/badge/Globus-data-2d6db5.svg)](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F)
 [![Models](https://img.shields.io/badge/Hugging_Face-models-ffcc4d.svg)](https://huggingface.co/mishapadidar/boss)
-<!-- [![Paper](https://img.shields.io/badge/arXiv-paper-b31b1b.svg)](<PAPER_URL>) -->
+[![arXiv](https://img.shields.io/badge/arXiv-2610.37910-b31b1b.svg)](https://arxiv.org/abs/2610.37910)
 
 The **Benchmark of Stellarator Simulations (the BoSS)** is a database of stellarator
 configurations paired with physics simulations: ideal-MHD equilibria and the
@@ -15,8 +15,7 @@ accompanies the BoSS benchmark paper.
 `boss-bench` loads the data and computes the benchmark metrics exactly as they are
 defined in the paper.
 
-<!-- once the paper is out, add: | [Paper](<PAPER_URL>) -->
-[Documentation](https://boss.flatironinstitute.org/) | [Data](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F) | [Models](https://huggingface.co/mishapadidar/boss)
+[Documentation](https://boss.flatironinstitute.org/) | [Paper](https://arxiv.org/abs/2610.37910) | [Data](https://app.globus.org/file-manager?origin_id=04779ab9-4a4e-4381-be6a-860f0433a4af&origin_path=%2F) | [Models](https://huggingface.co/mishapadidar/boss)
 
 ## Installation
 
@@ -241,15 +240,21 @@ pip install ".[test]"
 pytest
 ```
 
-<!-- Restore once the paper is out.
 ## Citation
 
 If you use the BoSS data or this package, please cite:
 
 ```bibtex
-<BIBTEX>
+@misc{padidar2026generativemodelingfusionlargescale,
+      title={Generative modeling for fusion: a large-scale benchmark of stellarator fast-ion simulations},
+      author={Misha Padidar and Teresa Huang and Mark Goldstein and Michael Czekanski and Jeffrey Soules},
+      year={2026},
+      eprint={2610.37910},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2610.37910},
+}
 ```
--->
 
 ## License
 
